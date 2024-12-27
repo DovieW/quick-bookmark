@@ -17,7 +17,8 @@ const darkTheme = createTheme({
 export default function Popup() {
   return (
     <ThemeProvider theme={darkTheme}>
-      <div style={{ minWidth: 300, minHeight: 300, padding: '1rem' }}>
+      {/* Increase height here. For example: minHeight: 400 */}
+      <div style={{ minWidth: 300, minHeight: 400, padding: '1rem' }}>
         <Typography variant="h6" gutterBottom>
           Quick Bookmark
         </Typography>

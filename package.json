@@ -1,0 +1,26 @@
+{
+  "name": "quick-bookmark",
+  "version": "1.0.0",
+  "description": "Quickly bookmark the current page into a chosen folder via fuzzy search",
+  "author": "Your Name",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.10.6",
+    "@emotion/styled": "^11.10.6",
+    "@mui/material": "^5.13.7",
+    "fuse.js": "^7.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.202",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^4.0.0",
+    "vite": "^4.0.0"
+  }
+}

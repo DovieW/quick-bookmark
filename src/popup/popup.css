@@ -1,0 +1,9 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0D1117; /* Matches GitHub Dark */
+  color: #C9D1D9;
+  font-family: sans-serif;
+}
+
+/* MUI overrides are typically done via ThemeProvider; you can put custom styles here */

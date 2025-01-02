@@ -170,32 +170,35 @@ export default function FolderSearch() {
         onKeyDown={handleKeyDown}
         size="small"
         style={{ marginBottom: '1rem' }}
+        sx={{
+          mt: 0.7
+        }}
       />
       {/* Increase the list's maxHeight if you want more visible space */}
-      <List style={{ maxHeight: 260, overflowY: 'auto' }}>
+      <List style={{ maxHeight: 260, overflowY: 'auto', whiteSpace: 'nowrap' }}>
         {filtered.map((folder, index) => {
           const isSelected = index === activeIndex;
 
           return (
-            <ListItem
-              key={folder.id}
-              disablePadding
-              // If this is the selected item, attach our ref for scrolling
-              ref={isSelected ? activeItemRef : null}
+        <ListItem
+          key={folder.id}
+          disablePadding
+          // If this is the selected item, attach our ref for scrolling
+          ref={isSelected ? activeItemRef : null}
+        >
+          <Tooltip
+            // Remove "ROOT" if it ever appears at start of path:
+            title={folder.path.replace(/^ROOT\//, '')}
+            arrow
+          >
+            <ListItemButton
+          selected={isSelected}
+          onClick={() => handleSelectFolder(folder.id)}
             >
-              <Tooltip
-                // Remove "ROOT" if it ever appears at start of path:
-                title={folder.path.replace(/^ROOT\//, '')}
-                arrow
-              >
-                <ListItemButton
-                  selected={isSelected}
-                  onClick={() => handleSelectFolder(folder.id)}
-                >
-                  <ListItemText primary={folder.title} />
-                </ListItemButton>
-              </Tooltip>
-            </ListItem>
+          <ListItemText primary={folder.title} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} />
+            </ListItemButton>
+          </Tooltip>
+        </ListItem>
           );
         })}
       </List>

@@ -133,6 +133,9 @@ export default function BookmarkOpen() {
         onKeyDown={handleKeyDown}
         size="small"
         style={{ marginBottom: '1rem' }}
+        sx={{
+          mt: 0.7
+        }}
       />
       <List style={{ maxHeight: 260, overflowY: 'auto' }}>
         {filtered.map((bm, index) => {
@@ -148,7 +151,7 @@ export default function BookmarkOpen() {
                   selected={isSelected}
                   onClick={() => handleOpenBookmark(bm)}
                 >
-                  <ListItemText primary={bm.title} />
+                  <ListItemText primary={bm.title}  style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} />
                 </ListItemButton>
               </Tooltip>
             </ListItem>

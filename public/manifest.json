@@ -1,12 +1,9 @@
 {
   "name": "Quick Bookmark",
-  "description": "Quickly bookmark the current page into a folder via fuzzy search.",
+  "description": "Quickly bookmark or open existing bookmarks",
   "version": "1.0.0",
   "manifest_version": 3,
-  "permissions": [
-    "bookmarks",
-    "tabs"
-  ],
+  "permissions": ["bookmarks", "tabs"],
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",
@@ -24,6 +21,12 @@
         "default": "Ctrl+D"
       },
       "description": "Open Quick Bookmark popup"
+    },
+    "quick-open": {
+      "suggested_key": {
+        "default": "Alt+F"
+      },
+      "description": "Open Quick Open search to find existing bookmarks"
     }
   }
 }

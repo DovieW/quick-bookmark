@@ -2,9 +2,17 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('Quick Bookmark Extension installed!');
 });
 
-// You could listen for commands here if you didn’t rely on default_action:
+// Listen for commands
 chrome.commands.onCommand.addListener((command) => {
-  if (command === 'open-quick-bookmark') {
-    // Possibly do something, or rely on the default action opening the popup
+  if (command === 'quick-open') {
+    // Programmatically open open.html in a small popup window
+    chrome.windows.create({
+      url: chrome.runtime.getURL('open.html'),
+      type: 'popup',
+      width: 400,
+      height: 500,
+      top: 100,
+      left: 100
+    });
   }
 });

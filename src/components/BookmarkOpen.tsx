@@ -12,8 +12,7 @@ import Fuse from 'fuse.js';
 interface BookmarkItem {
   id: string;
   title: string;
-  url: string;    // many bookmarks have url, folders do not
-  path?: string;  // optional if you want to store folder path
+  url: string;
 }
 
 export default function BookmarkOpen() {
@@ -33,11 +32,11 @@ export default function BookmarkOpen() {
     fetchBookmarks();
   }, []);
 
-  // Build fuse index after we load the bookmarks
+  // Build fuse index after we load the bookmarks, searching only on "title"
   useEffect(() => {
     if (bookmarks.length > 0) {
       const fuseInstance = new Fuse(bookmarks, {
-        keys: ['title', 'url'],
+        keys: ['title'],
         threshold: 0.3
       });
       setFuse(fuseInstance);
@@ -56,7 +55,6 @@ export default function BookmarkOpen() {
     }
   }, [activeIndex]);
 
-  // Recursively traverse all bookmarks, collect items that have url
   const fetchBookmarks = () => {
     chrome.bookmarks.getTree((nodes) => {
       const all: BookmarkItem[] = [];
@@ -67,13 +65,11 @@ export default function BookmarkOpen() {
     });
   };
 
+  // Recursively collect bookmarks that have a URL
   const collectBookmarks = (
     node: chrome.bookmarks.BookmarkTreeNode,
     result: BookmarkItem[]
   ) => {
-    if (!node) return;
-
-    // If this node has a url, it's a "leaf" bookmark
     if (node.url) {
       result.push({
         id: node.id,
@@ -81,14 +77,11 @@ export default function BookmarkOpen() {
         url: node.url
       });
     }
-
-    // If node has children, keep traversing
     if (node.children) {
       node.children.forEach((child) => collectBookmarks(child, result));
     }
   };
 
-  // Fuzzy search by title/url
   const handleSearch = (term: string) => {
     setSearchTerm(term);
     if (!fuse || !term) {
@@ -96,16 +89,16 @@ export default function BookmarkOpen() {
       setActiveIndex(0);
       return;
     }
-
     const results = fuse.search(term).map((r) => r.item);
     setFiltered(results);
     setActiveIndex(0);
   };
 
-  // Open the selected bookmark in a new tab
+  // Open the selected bookmark
   const handleOpenBookmark = (bookmark: BookmarkItem) => {
+    // Open in a new tab
     chrome.tabs.create({ url: bookmark.url });
-    window.close(); // close the popup
+    window.close();
   };
 
   // Keyboard navigation
@@ -116,15 +109,11 @@ export default function BookmarkOpen() {
       }
       return;
     }
-
-    // ArrowDown or Ctrl+N => move down
     if ((e.ctrlKey && e.key.toLowerCase() === 'n') || e.key === 'ArrowDown') {
       e.preventDefault();
       setActiveIndex((prev) => Math.min(prev + 1, filtered.length - 1));
       return;
     }
-
-    // ArrowUp or Ctrl+P => move up
     if ((e.ctrlKey && e.key.toLowerCase() === 'p') || e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIndex((prev) => Math.max(prev - 1, 0));
@@ -154,7 +143,6 @@ export default function BookmarkOpen() {
               disablePadding
               ref={isSelected ? activeItemRef : null}
             >
-              {/* Tooltip shows URL or any extra info you like */}
               <Tooltip title={bm.url} arrow>
                 <ListItemButton
                   selected={isSelected}

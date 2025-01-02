@@ -8,7 +8,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'popup.html'),  // The original Quick Bookmark popup
-        open: resolve(__dirname, 'open.html'),    // The new Quick Open popup
         background: resolve(__dirname, 'src/background.ts')
       },
       output: {

@@ -95,9 +95,12 @@ export default function BookmarkOpen() {
   };
 
   // Open the selected bookmark
-  const handleOpenBookmark = (bookmark: BookmarkItem) => {
+  const handleOpenBookmark = async (bookmark: BookmarkItem) => {
     // Open in a new tab
-    chrome.tabs.create({ url: bookmark.url });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+    chrome.tabs.create({ url: bookmark.url,
+      index: currentTab.index + 1 });
     window.close();
   };
 

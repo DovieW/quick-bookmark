@@ -4,14 +4,13 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
-  if (command === 'quick-open') {
-    // 1) Set mode=open in storage
-    await chrome.storage.session.set({ quickMode: 'open' });
+  if (command === 'open') {
+    await chrome.storage.local.set({ quickMode: 'open' });
 
-    // 2) Open the same default popup
+    chrome.action.openPopup();
+  } else if (command === 'add') {
+    await chrome.storage.local.set({ quickMode: 'add' });
+
     chrome.action.openPopup();
   }
-  // If needed, you could also listen for "_execute_action" to explicitly set "bookmark" mode.
-  // But Chrome automatically opens the default_popup for _execute_action. 
-  // We'll handle the fallback logic in the popup itself.
 });

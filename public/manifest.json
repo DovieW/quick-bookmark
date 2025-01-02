@@ -16,13 +16,13 @@
     "service_worker": "background.js"
   },
   "commands": {
-    "_execute_action": {
+    "add": {
       "suggested_key": {
         "default": "Ctrl+D"
       },
       "description": "Open Quick Bookmark popup"
     },
-    "quick-open": {
+    "open": {
       "suggested_key": {
         "default": "Alt+F"
       },

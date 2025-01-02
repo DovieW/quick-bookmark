@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ThemeProvider, createTheme, Typography, Box } from '@mui/material';
 import BookmarkOpen from './BookmarkOpen';
 import FolderSearch from './FolderSearch';
@@ -12,7 +12,17 @@ const darkTheme = createTheme({
   }
 });
 
-export default function Popup() {
+const Popup = () => {
+  const [quickMode, setQuickMode] = useState('');
+
+  useEffect(() => {
+    chrome.storage.local.get(['quickMode'], (result) => {
+      if (result.quickMode) {
+        setQuickMode(result.quickMode);
+      } 
+    });
+  }, []);
+
   return (
     <ThemeProvider theme={darkTheme}>
       {/* The outer Box has a fixed width/height, so the popup won’t auto-resize */}
@@ -36,10 +46,11 @@ export default function Popup() {
           and makes the content scroll vertically if needed 
         */}
         <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          <BookmarkOpen />
-          {/* or <FolderSearch /> if you’re in bookmark mode */}
+          {quickMode === 'open' ? <BookmarkOpen /> : <FolderSearch />}
         </Box>
       </Box>
     </ThemeProvider>
   );
-}
+};
+
+export default Popup;

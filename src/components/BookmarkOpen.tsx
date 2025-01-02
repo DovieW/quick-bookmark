@@ -137,7 +137,7 @@ export default function BookmarkOpen() {
           mt: 0.7
         }}
       />
-      <List style={{ maxHeight: 260, overflowY: 'auto' }}>
+      <List style={{overflowY: 'auto', maxHeight: 'calc(82%)' }}>
         {filtered.map((bm, index) => {
           const isSelected = index === activeIndex;
           return (

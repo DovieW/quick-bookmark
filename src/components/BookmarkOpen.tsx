@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   TextField,
   List,
@@ -23,29 +23,34 @@ export default function BookmarkOpen() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
 
-  const [fuse, setFuse] = useState<Fuse<BookmarkItem>>();
+  // Build the Fuse index once whenever bookmarks changes
+  const fuse = useMemo(() => {
+    if (bookmarks.length > 0) {
+      return new Fuse(bookmarks, {
+        keys: ['title'],
+        threshold: 0.3
+      });
+    }
+    return null;
+  }, [bookmarks]);
 
-  useEffect(() => {
+  // Focus the search input once on mount and fetch bookmarks
+  useEffect(() => { 
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
     fetchBookmarks();
   }, []);
 
-  // Build fuse index after we load the bookmarks, searching only on "title"
+  // After bookmarks are loaded, set them as the default "filtered" set
   useEffect(() => {
     if (bookmarks.length > 0) {
-      const fuseInstance = new Fuse(bookmarks, {
-        keys: ['title'],
-        threshold: 0.3
-      });
-      setFuse(fuseInstance);
       setFiltered(bookmarks);
       setActiveIndex(0);
     }
   }, [bookmarks]);
 
-  // Scroll into view when activeIndex changes
+  // Scroll the active item into view
   useEffect(() => {
     if (activeItemRef.current) {
       activeItemRef.current.scrollIntoView({
@@ -65,7 +70,6 @@ export default function BookmarkOpen() {
     });
   };
 
-  // Recursively collect bookmarks that have a URL
   const collectBookmarks = (
     node: chrome.bookmarks.BookmarkTreeNode,
     result: BookmarkItem[]
@@ -82,13 +86,16 @@ export default function BookmarkOpen() {
     }
   };
 
+  // Handle search input
   const handleSearch = (term: string) => {
     setSearchTerm(term);
+
     if (!fuse || !term) {
       setFiltered(bookmarks);
       setActiveIndex(0);
       return;
     }
+
     const results = fuse.search(term).map((r) => r.item);
     setFiltered(results);
     setActiveIndex(0);
@@ -96,11 +103,12 @@ export default function BookmarkOpen() {
 
   // Open the selected bookmark
   const handleOpenBookmark = async (bookmark: BookmarkItem) => {
-    // Open in a new tab
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTab = tabs[0];
-    chrome.tabs.create({ url: bookmark.url,
-      index: currentTab.index + 1 });
+    chrome.tabs.create({
+      url: bookmark.url,
+      index: currentTab.index + 1
+    });
     window.close();
   };
 
@@ -136,12 +144,10 @@ export default function BookmarkOpen() {
         onKeyDown={handleKeyDown}
         size="small"
         style={{ marginBottom: '1rem' }}
-        sx={{
-          mt: 0.7
-        }}
+        sx={{ mt: 0.7 }}
       />
-      <List style={{overflowY: 'auto', maxHeight: 'calc(82%)' }}>
-        {filtered.map((bm, index) => {
+      <List style={{ overflowY: 'auto', maxHeight: 'calc(82%)' }}>
+        {filtered.slice(0, 20).map((bm, index) => {
           const isSelected = index === activeIndex;
           return (
             <ListItem
@@ -150,12 +156,15 @@ export default function BookmarkOpen() {
               ref={isSelected ? activeItemRef : null}
             >
               <Tooltip title={bm.url} arrow>
-                <ListItemButton
-                  selected={isSelected}
-                  onClick={() => handleOpenBookmark(bm)}
-                >
-                  <ListItemText primary={bm.title}  style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} />
-                </ListItemButton>
+          <ListItemButton
+            selected={isSelected}
+            onClick={() => handleOpenBookmark(bm)}
+          >
+            <ListItemText
+              primary={bm.title}
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
+            />
+          </ListItemButton>
               </Tooltip>
             </ListItem>
           );

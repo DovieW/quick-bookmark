@@ -176,7 +176,7 @@ export default function FolderSearch() {
       />
       {/* Increase the list's maxHeight if you want more visible space */}
       <List style={{overflowY: 'auto', maxHeight: 'calc(82%)'}}>
-        {filtered.map((folder, index) => {
+        {filtered.slice(0, 20).map((folder, index) => {
           const isSelected = index === activeIndex;
 
           return (

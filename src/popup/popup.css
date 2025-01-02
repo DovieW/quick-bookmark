@@ -6,4 +6,26 @@ body {
   font-family: sans-serif;
 }
 
+/* Scrollbar width */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+/* Scrollbar track */
+::-webkit-scrollbar-track {
+  background: #0D1117; /* matches dark theme */
+}
+
+/* Scrollbar thumb */
+::-webkit-scrollbar-thumb {
+  background-color: #444;
+  border-radius: 4px;
+  border: 1px solid #222; /* subtle border for contrast */
+}
+
+/* Hover effect on thumb */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #666;
+}
+
 /* MUI overrides are typically done via ThemeProvider; you can put custom styles here */

@@ -186,18 +186,22 @@ export default function FolderSearch() {
           // If this is the selected item, attach our ref for scrolling
           ref={isSelected ? activeItemRef : null}
         >
-          <Tooltip
-            // Remove "ROOT" if it ever appears at start of path:
-            title={folder.path.replace(/^ROOT\//, '')}
-            arrow
+          <ListItemButton
+            selected={isSelected}
+            onClick={() => handleSelectFolder(folder.id)}
           >
-            <ListItemButton
-          selected={isSelected}
-          onClick={() => handleSelectFolder(folder.id)}
-            >
-          <ListItemText primary={folder.title} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} />
-            </ListItemButton>
-          </Tooltip>
+            <ListItemText
+              primary={
+          <>
+            {folder.title}
+            <span style={{ color: '#6b6b6b', fontSize: '0.7rem', marginLeft: '0.5rem' }}>
+              {folder.path.replace(/^ROOT\//, '')}
+            </span>
+          </>
+              }
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
+            />
+          </ListItemButton>
         </ListItem>
           );
         })}

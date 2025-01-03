@@ -155,17 +155,24 @@ export default function BookmarkOpen() {
               disablePadding
               ref={isSelected ? activeItemRef : null}
             >
-              <Tooltip title={bm.url} arrow>
+              {/* <Tooltip title={bm.url} arrow> */}
           <ListItemButton
             selected={isSelected}
             onClick={() => handleOpenBookmark(bm)}
           >
             <ListItemText
-              primary={bm.title}
+              primary={
+                <>
+                  {bm.title}
+                  <span style={{ color: '#6b6b6b', fontSize: '0.7rem', marginLeft: '0.5rem' }}>
+                    {bm.url}
+                  </span>
+                </>
+              }
               style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
             />
           </ListItemButton>
-              </Tooltip>
+              {/* </Tooltip> */}
             </ListItem>
           );
         })}

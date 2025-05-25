@@ -116,10 +116,22 @@ export default function BookmarkOpen() {
       chrome.tabs.update(currentTab.id!, { url: bookmark.url });
     } else {
       // Create new tab next to current tab
-      chrome.tabs.create({
+      const newTab = await chrome.tabs.create({
         url: bookmark.url,
         index: currentTab.index + 1
       });
+
+      // Check if the current tab is in a group and add the new tab to the same group
+      if (currentTab.groupId && currentTab.groupId !== -1 && newTab.id) {
+        try {
+          await chrome.tabs.group({
+            tabIds: [newTab.id],
+            groupId: currentTab.groupId
+          });
+        } catch (error) {
+          console.warn('Failed to add tab to group:', error);
+        }
+      }
     }
     window.close();
   };

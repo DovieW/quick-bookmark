@@ -102,10 +102,25 @@ export default function BookmarkOpen() {
   const handleOpenBookmark = async (bookmark: BookmarkItem) => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTab = tabs[0];
-    chrome.tabs.create({
-      url: bookmark.url,
-      index: currentTab.index + 1
-    });
+    
+    // Check if current tab is a new tab
+    const isNewTab = currentTab.url === 'chrome://newtab/' || 
+                     currentTab.url === 'chrome-search://local-ntp/' ||
+                     currentTab.url === 'edge://newtab/' ||
+                     currentTab.url === 'about:newtab' ||
+                     !currentTab.url ||
+                     currentTab.url === '';
+    
+    if (isNewTab) {
+      // Navigate current tab to the bookmark URL
+      chrome.tabs.update(currentTab.id!, { url: bookmark.url });
+    } else {
+      // Create new tab next to current tab
+      chrome.tabs.create({
+        url: bookmark.url,
+        index: currentTab.index + 1
+      });
+    }
     window.close();
   };
 

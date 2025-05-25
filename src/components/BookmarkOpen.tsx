@@ -99,22 +99,11 @@ export default function BookmarkOpen() {
     setActiveIndex(0);
   };
 
-  const handleOpenBookmark = async (bookmark: BookmarkItem) => {
+  const handleOpenBookmark = async (bookmark: BookmarkItem, forceNewTab: boolean = false) => {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTab = tabs[0];
     
-    // Check if current tab is a new tab
-    const isNewTab = currentTab.url === 'chrome://newtab/' || 
-                     currentTab.url === 'chrome-search://local-ntp/' ||
-                     currentTab.url === 'edge://newtab/' ||
-                     currentTab.url === 'about:newtab' ||
-                     !currentTab.url ||
-                     currentTab.url === '';
-    
-    if (isNewTab) {
-      // Navigate current tab to the bookmark URL
-      chrome.tabs.update(currentTab.id!, { url: bookmark.url });
-    } else {
+    if (forceNewTab) {
       // Create new tab next to current tab
       const newTab = await chrome.tabs.create({
         url: bookmark.url,
@@ -132,6 +121,9 @@ export default function BookmarkOpen() {
           console.warn('Failed to add tab to group:', error);
         }
       }
+    } else {
+      // Navigate current tab to the bookmark URL
+      chrome.tabs.update(currentTab.id!, { url: bookmark.url });
     }
     window.close();
   };
@@ -139,7 +131,9 @@ export default function BookmarkOpen() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (filtered.length > 0) {
-        handleOpenBookmark(filtered[activeIndex]);
+        // Open in new tab if Ctrl is held, otherwise open in current tab
+        const forceNewTab = e.ctrlKey;
+        handleOpenBookmark(filtered[activeIndex], forceNewTab);
       }
       return;
     }
@@ -195,7 +189,7 @@ export default function BookmarkOpen() {
               >
                 <ListItemButton
                   selected={isSelected}
-                  onClick={() => handleOpenBookmark(bm)}
+                  onClick={(e) => handleOpenBookmark(bm, e.ctrlKey)}
                   sx={{
                     py: 1.5,
                     px: 2,

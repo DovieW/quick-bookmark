@@ -11,11 +11,15 @@ import {
 } from '@mui/material';
 import { FolderOutlined } from '@mui/icons-material';
 import Fuse from 'fuse.js';
+import { prepareSearchableText } from '../utils/emojiUtils'; // Added import
 
 interface BookmarkFolder {
   id: string;
   title: string;
   path: string; // full path, excluding any "ROOT"
+  // Added for Fuse.js to search on the original title and path plus emoji names
+  searchableTitle?: string; 
+  searchablePath?: string;
 }
 
 export default function FolderSearch() {
@@ -37,7 +41,7 @@ export default function FolderSearch() {
   useEffect(() => {
     if (folders.length > 0) {
       const fuseInstance = new Fuse(folders, {
-        keys: ['title', 'path'],
+        keys: ['searchableTitle', 'searchablePath'], // Updated keys for Fuse.js
         threshold: 0.3
       });
       setFuse(fuseInstance);
@@ -71,7 +75,13 @@ export default function FolderSearch() {
       bookmarkTreeNodes.forEach((rootNode) => {
         traverseBookmarks(rootNode, '', allFolders);
       });
-      setFolders(allFolders);
+      // Prepare folders with searchable text including emoji names
+      const preparedFolders = allFolders.map(folder => ({
+        ...folder,
+        searchableTitle: prepareSearchableText(folder.title),
+        searchablePath: prepareSearchableText(folder.path)
+      }));
+      setFolders(preparedFolders);
     });
   };
 

@@ -11,11 +11,13 @@ import {
 } from '@mui/material';
 import { BookmarkOutlined, OpenInNew } from '@mui/icons-material';
 import Fuse from 'fuse.js';
+import { prepareSearchableText } from '../utils/emojiUtils'; // Added import
 
 interface BookmarkItem {
   id: string;
   title: string;
   url: string;
+  searchableTitle?: string; // Added for Fuse.js to search on the original title plus emoji names
 }
 
 export default function BookmarkOpen() {
@@ -29,7 +31,7 @@ export default function BookmarkOpen() {
   const fuse = useMemo(() => {
     if (bookmarks.length > 0) {
       return new Fuse(bookmarks, {
-        keys: ['title'],
+        keys: ['searchableTitle'], // Updated key for Fuse.js
         threshold: 0.3
       });
     }
@@ -75,7 +77,12 @@ export default function BookmarkOpen() {
       nodes.forEach((rootNode) => {
         collectBookmarks(rootNode, all);
       });
-      setBookmarks(all);
+      // Prepare bookmarks with searchable text including emoji names
+      const preparedBookmarks = all.map(bookmark => ({
+        ...bookmark,
+        searchableTitle: prepareSearchableText(bookmark.title)
+      }));
+      setBookmarks(preparedBookmarks);
     });
   };
 

@@ -1,7 +1,12 @@
 # Quick Bookmark
 
-Activate keyboard shortcut (recommend Ctrl + D, might have to re-set it even though it's the default) to open the popup and search quickly through all your bookmark folders using fuzzy find (full path included in search) and hit enter to add. Ctrl + N/P to cycle through list.
+Quickly bookmark a page or open a bookmarked page via fuzzy search.
+
+- `ctrl + D` to bookmark a page.
+- `alt + F` to open a bookmarked page.
+
+May have to set shortcuts manually in Chrome extension settings: `chrome://extensions/shortcuts`
 
 [Chrome Store](https://chromewebstore.google.com/detail/quick-bookmark/diadedbbnkkjdmldbnfiohjomifmghbi)
 
-![a|400](https://lh3.googleusercontent.com/FXZHyEUyamwGwOlxWHR_jfG6SalHu5eseHunVomC5BU8RHxOZO2nS8pKy7aF9vFVFNV2dRfuvjn7hT1ue7OsW6SgPQ=s1280-w1280-h800)
+![a|400](https://i.imgur.com/XkaDJnv.png)

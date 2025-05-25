@@ -59,6 +59,16 @@ export default function BookmarkOpen() {
     }
   }, [activeIndex]);
 
+  useEffect(() => {
+    // Ensure activeIndex is always within bounds when filtered array changes
+    const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
+    if (filtered.length > 0 && activeIndex > maxDisplayedIndex) {
+      setActiveIndex(maxDisplayedIndex);
+    } else if (filtered.length === 0) {
+      setActiveIndex(0);
+    }
+  }, [filtered, activeIndex]);
+
   const fetchBookmarks = () => {
     chrome.bookmarks.getTree((nodes) => {
       const all: BookmarkItem[] = [];
@@ -130,7 +140,7 @@ export default function BookmarkOpen() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      if (filtered.length > 0) {
+      if (filtered.length > 0 && activeIndex < filtered.length) {
         // Open in new tab if Ctrl is held, otherwise open in current tab
         const forceNewTab = e.ctrlKey;
         handleOpenBookmark(filtered[activeIndex], forceNewTab);
@@ -139,12 +149,17 @@ export default function BookmarkOpen() {
     }
     if ((e.ctrlKey && e.key.toLowerCase() === 'n') || e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex((prev) => Math.min(prev + 1, filtered.length - 1));
+      if (filtered.length > 0) {
+        const maxDisplayedIndex = Math.min(filtered.length - 1, 19); // Only go to the last displayed item
+        setActiveIndex((prev) => Math.min(prev + 1, maxDisplayedIndex));
+      }
       return;
     }
     if ((e.ctrlKey && e.key.toLowerCase() === 'p') || e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex((prev) => Math.max(prev - 1, 0));
+      if (filtered.length > 0) {
+        setActiveIndex((prev) => Math.max(prev - 1, 0));
+      }
       return;
     }
   };
@@ -179,7 +194,7 @@ export default function BookmarkOpen() {
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         <List sx={{ py: 0.5, width: '100%', pr: 1 }}>
           {filtered.slice(0, 20).map((bm, index) => {
-            const isSelected = index === activeIndex;
+            const isSelected = index === activeIndex && activeIndex < filtered.length;
             return (
               <ListItem
                 key={bm.id}

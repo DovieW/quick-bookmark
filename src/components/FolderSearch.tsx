@@ -55,6 +55,16 @@ export default function FolderSearch() {
     }
   }, [activeIndex]);
 
+  useEffect(() => {
+    // Ensure activeIndex is always within bounds when filtered array changes
+    const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
+    if (filtered.length > 0 && activeIndex > maxDisplayedIndex) {
+      setActiveIndex(maxDisplayedIndex);
+    } else if (filtered.length === 0) {
+      setActiveIndex(0);
+    }
+  }, [filtered, activeIndex]);
+
   const fetchFolders = () => {
     chrome.bookmarks.getTree((bookmarkTreeNodes) => {
       const allFolders: BookmarkFolder[] = [];
@@ -124,7 +134,7 @@ export default function FolderSearch() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      if (filtered.length > 0) {
+      if (filtered.length > 0 && activeIndex < filtered.length) {
         handleSelectFolder(filtered[activeIndex].id);
       }
       return;
@@ -132,13 +142,18 @@ export default function FolderSearch() {
 
     if ((e.ctrlKey && e.key.toLowerCase() === 'n') || e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex((prev) => Math.min(prev + 1, filtered.length - 1));
+      if (filtered.length > 0) {
+        const maxDisplayedIndex = Math.min(filtered.length - 1, 19); // Only go to the last displayed item
+        setActiveIndex((prev) => Math.min(prev + 1, maxDisplayedIndex));
+      }
       return;
     }
 
     if ((e.ctrlKey && e.key.toLowerCase() === 'p') || e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex((prev) => Math.max(prev - 1, 0));
+      if (filtered.length > 0) {
+        setActiveIndex((prev) => Math.max(prev - 1, 0));
+      }
       return;
     }
   };
@@ -165,7 +180,7 @@ export default function FolderSearch() {
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
         <List sx={{ py: 0.5, width: '100%', pr: 1 }}>
           {filtered.slice(0, 20).map((folder, index) => {
-            const isSelected = index === activeIndex;
+            const isSelected = index === activeIndex && activeIndex < filtered.length;
 
             return (
               <ListItem

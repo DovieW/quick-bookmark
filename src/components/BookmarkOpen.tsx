@@ -138,12 +138,22 @@ export default function BookmarkOpen() {
     window.close();
   };
 
+  const handleOpenBookmarkAtEnd = async (bookmark: BookmarkItem) => {
+    // Create a new tab at the end of all tabs
+    await chrome.tabs.create({ url: bookmark.url });
+    window.close();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (filtered.length > 0 && activeIndex < filtered.length) {
-        // Open in new tab if Ctrl is held, otherwise open in current tab
-        const forceNewTab = e.ctrlKey;
-        handleOpenBookmark(filtered[activeIndex], forceNewTab);
+        if (e.ctrlKey && e.shiftKey) {
+          handleOpenBookmarkAtEnd(filtered[activeIndex]);
+        } else {
+          // Open in new tab if Ctrl is held, otherwise open in current tab
+          const forceNewTab = e.ctrlKey;
+          handleOpenBookmark(filtered[activeIndex], forceNewTab);
+        }
       }
       return;
     }

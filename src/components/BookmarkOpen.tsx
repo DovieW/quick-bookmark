@@ -7,15 +7,20 @@ import {
   ListItemText,
   Box,
   Typography,
-  alpha
+  alpha,
+  IconButton,
+  Tooltip,
+  Menu,
+  MenuItem
 } from '@mui/material';
-import { BookmarkOutlined, OpenInNew } from '@mui/icons-material';
+import { BookmarkOutlined, FolderOpen, ContentCopy, Language, MoreVert } from '@mui/icons-material';
 import Fuse from 'fuse.js';
 
 interface BookmarkItem {
   id: string;
   title: string;
   url: string;
+  parentId?: string;
 }
 
 export default function BookmarkOpen() {
@@ -25,6 +30,8 @@ export default function BookmarkOpen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeItemRef = useRef<HTMLLIElement>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [menuBookmark, setMenuBookmark] = useState<BookmarkItem | null>(null);
 
   const fuse = useMemo(() => {
     if (bookmarks.length > 0) {
@@ -87,7 +94,8 @@ export default function BookmarkOpen() {
       result.push({
         id: node.id,
         title: node.title || '(Untitled)',
-        url: node.url
+        url: node.url,
+        parentId: node.parentId
       });
     }
     if (node.children) {
@@ -180,6 +188,56 @@ export default function BookmarkOpen() {
     } catch {
       return url;
     }
+  };
+
+  const extractHostname = (url: string) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (_) {
+        console.warn('Clipboard copy failed');
+      }
+    }
+  };
+
+  const handleOpenBookmarkManagerToFolder = async (bookmark: BookmarkItem) => {
+    if (!bookmark.parentId) return;
+    const managerUrl = `chrome://bookmarks/?id=${bookmark.parentId}`;
+    await chrome.tabs.create({ url: managerUrl });
+    window.close();
+  };
+
+  const handleOpenActionsMenu = (
+    event: React.MouseEvent<HTMLElement>,
+    bookmark: BookmarkItem
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+    setMenuBookmark(bookmark);
+  };
+
+  const handleCloseActionsMenu = () => {
+    setMenuAnchorEl(null);
+    setMenuBookmark(null);
   };
 
   return (
@@ -289,25 +347,64 @@ export default function BookmarkOpen() {
                     </Box>
 
                     {isSelected && (
-                      <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 24,
-                        height: 24,
-                        borderRadius: 1,
-                        backgroundColor: alpha('#ffffff', 0.2),
-                        color: 'white',
-                        flexShrink: 0
-                      }}>
-                        <OpenInNew fontSize="small" sx={{ fontSize: 14 }} />
-                      </Box>
+                      <Tooltip title="More actions">
+                        <IconButton
+                          size="small"
+                          sx={{
+                            width: 28,
+                            height: 28,
+                            color: 'white',
+                            backgroundColor: alpha('#ffffff', 0.2),
+                            '&:hover': { backgroundColor: alpha('#ffffff', 0.3) }
+                          }}
+                          onClick={(e) => handleOpenActionsMenu(e, bm)}
+                        >
+                          <MoreVert sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </Tooltip>
                     )}
                   </Box>
                 </ListItemButton>
               </ListItem>
             );
           })}
+          <Menu
+            anchorEl={menuAnchorEl}
+            open={Boolean(menuAnchorEl)}
+            onClose={handleCloseActionsMenu}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <MenuItem
+              onClick={() => {
+                if (menuBookmark) {
+                  handleOpenBookmarkManagerToFolder(menuBookmark);
+                }
+                handleCloseActionsMenu();
+              }}
+            >
+              <FolderOpen fontSize="small" style={{ marginRight: 8 }} />
+              Open manager to folder
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (menuBookmark) copyToClipboard(menuBookmark.url);
+                handleCloseActionsMenu();
+              }}
+            >
+              <ContentCopy fontSize="small" style={{ marginRight: 8 }} />
+              Copy URL
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (menuBookmark) copyToClipboard(extractHostname(menuBookmark.url));
+                handleCloseActionsMenu();
+              }}
+            >
+              <Language fontSize="small" style={{ marginRight: 8 }} />
+              Copy domain
+            </MenuItem>
+          </Menu>
         </List>
       </Box>
     </Box>

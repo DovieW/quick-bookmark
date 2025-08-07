@@ -7,9 +7,11 @@ import {
   ListItemText,
   Box,
   Typography,
-  alpha
+  alpha,
+  IconButton,
+  Tooltip
 } from '@mui/material';
-import { FolderOutlined } from '@mui/icons-material';
+import { FolderOutlined, FolderOpen } from '@mui/icons-material';
 import Fuse from 'fuse.js';
 
 interface BookmarkFolder {
@@ -158,6 +160,12 @@ export default function FolderSearch() {
     }
   };
 
+  const handleOpenBookmarkManagerToFolder = async (folderId: string) => {
+    const managerUrl = `chrome://bookmarks/?id=${folderId}`;
+    await chrome.tabs.create({ url: managerUrl });
+    window.close();
+  };
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TextField
@@ -264,6 +272,28 @@ export default function FolderSearch() {
                         {folder.path.replace(/^ROOT\//, '')}
                       </Typography>
                     </Box>
+
+                    {isSelected && (
+                      <Tooltip title="Open manager to folder">
+                        <IconButton
+                          size="small"
+                          sx={{
+                            width: 28,
+                            height: 28,
+                            color: 'white',
+                            backgroundColor: alpha('#ffffff', 0.2),
+                            '&:hover': { backgroundColor: alpha('#ffffff', 0.3) }
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleOpenBookmarkManagerToFolder(folder.id);
+                          }}
+                        >
+                          <FolderOpen sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </Box>
                 </ListItemButton>
               </ListItem>

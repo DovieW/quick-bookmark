@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { ThemeProvider, createTheme, Typography, Box, Chip } from '@mui/material';
 import { BookmarkAdd, Search } from '@mui/icons-material';
-import BookmarkOpen from './BookmarkOpen';
-import FolderSearch from './FolderSearch';
+const BookmarkOpen = React.lazy(() => import('./BookmarkOpen'));
+const FolderSearch = React.lazy(() => import('./FolderSearch'));
 import '../popup/popup.css';
 
 const darkTheme = createTheme({
@@ -109,41 +109,52 @@ const Popup = () => {
     });
   }, []);
 
+  // lock outer body scrolling and size
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalMargin = document.body.style.margin;
+    document.body.style.overflow = 'hidden';
+    document.body.style.margin = '0';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.margin = originalMargin;
+    };
+  }, []);
+
   const isOpenMode = quickMode === 'open';
 
   return (
     <ThemeProvider theme={darkTheme}>
       <Box
         sx={{
-          width: 380,
-          height: 520,
+          width: 520,
+          height: 560, // within Chrome popup max to prevent outer scroll
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: 'background.default',
           color: 'text.primary',
-          p: 3,
-          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+          p: 2.5,
         }}
       >
-        {/* Header with improved styling */}
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 2, 
-          mb: 3,
-          pb: 2,
+        {/* Header simplified (no gradients) */}
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          mb: 2,
+          pb: 1.5,
           borderBottom: '1px solid',
           borderColor: 'divider'
         }}>
-          <Box sx={{ 
-            display: 'flex', 
+          <Box sx={{
+            display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             width: 40,
             height: 40,
             borderRadius: 2,
-            background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
-            color: 'white'
+            backgroundColor: '#1E293B',
+            color: 'text.primary'
           }}>
             {isOpenMode ? <Search /> : <BookmarkAdd />}
           </Box>
@@ -169,28 +180,24 @@ const Popup = () => {
           />
         </Box>
 
-        {/* Content area with improved scrolling */}
-        <Box sx={{ 
-          flex: 1, 
-          overflowY: 'auto', 
+        {/* Content area */}
+        <Box sx={{
+          flex: 1,
+          overflowY: 'auto',
           overflowX: 'hidden',
-          minWidth: 0, // Prevent flex item from growing beyond container
+          minWidth: 0,
           width: '100%',
-          '&::-webkit-scrollbar': {
-            width: '6px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'transparent',
-          },
+          '&::-webkit-scrollbar': { width: '6px' },
+          '&::-webkit-scrollbar-track': { background: 'transparent' },
           '&::-webkit-scrollbar-thumb': {
             backgroundColor: '#475569',
             borderRadius: '3px',
-            '&:hover': {
-              backgroundColor: '#64748B',
-            },
-          },
+            '&:hover': { backgroundColor: '#64748B' }
+          }
         }}>
-          {isOpenMode ? <BookmarkOpen /> : <FolderSearch />}
+          <Suspense fallback={<Box sx={{ p: 2, fontSize: 13, color: 'text.secondary' }}>Loading…</Box>}>
+            {isOpenMode ? <BookmarkOpen /> : <FolderSearch />}
+          </Suspense>
         </Box>
       </Box>
     </ThemeProvider>

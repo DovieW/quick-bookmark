@@ -32,6 +32,9 @@ export default function BookmarkOpen() {
   const activeItemRef = useRef<HTMLLIElement>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [menuBookmark, setMenuBookmark] = useState<BookmarkItem | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const [highlight, setHighlight] = useState<{ top: number; height: number; left: number; width: number } | null>(null);
+  const activeButtonRef = useRef<HTMLDivElement>(null); // NEW ref for precise measurement
 
   const fuse = useMemo(() => {
     if (bookmarks.length > 0) {
@@ -75,6 +78,24 @@ export default function BookmarkOpen() {
       setActiveIndex(0);
     }
   }, [filtered, activeIndex]);
+
+  useEffect(() => {
+    // Recompute highlight box using offset values for better alignment
+    if (filtered.length === 0) {
+      setHighlight(null);
+      return;
+    }
+    if (activeItemRef.current && activeButtonRef.current) {
+      const item = activeItemRef.current; // The ListItem
+      const btn = activeButtonRef.current as HTMLDivElement;
+      const GUTTER = 3; // horizontal inset to avoid left clipping
+      // Use offset* to avoid subpixel transform issues
+      const top = item.offsetTop; // Correctly measure from the ListItem
+      const height = btn.offsetHeight;
+      const width = btn.offsetWidth - GUTTER * 2;
+      setHighlight({ top, height, left: GUTTER, width });
+    }
+  }, [activeIndex, filtered]);
 
   const fetchBookmarks = () => {
     chrome.bookmarks.getTree((nodes) => {
@@ -260,7 +281,28 @@ export default function BookmarkOpen() {
       />
       
       <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
-        <List sx={{ py: 0.5, width: '100%', pr: 1 }}>
+        <List sx={{ py: 0.5, width: '100%', pr: 1, position: 'relative' }} ref={listRef}>
+          {highlight && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: highlight.top,
+                left: highlight.left,
+                width: highlight.width,
+                height: highlight.height,
+                // background: 'linear-gradient(90deg, rgba(59,130,246,0.30), rgba(59,130,246,0.18) 55%, rgba(59,130,246,0.05))',
+                background: 'rgba(59,130,246,0.30)',
+                borderRadius: 2,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.45)',
+                backdropFilter: 'blur(1.5px)',
+                WebkitBackdropFilter: 'blur(1.5px)',
+                pointerEvents: 'none',
+                transition: 'top 140ms cubic-bezier(.4,0,.2,1), height 140ms, width 140ms',
+                zIndex: 0,
+                willChange: 'top,height,width'
+              }}
+            />
+          )}
           {filtered.slice(0, 20).map((bm, index) => {
             const isSelected = index === activeIndex && activeIndex < filtered.length;
             return (
@@ -268,35 +310,31 @@ export default function BookmarkOpen() {
                 key={bm.id}
                 disablePadding
                 ref={isSelected ? activeItemRef : null}
-                sx={{ mb: 0.5 }}
+                sx={{ mb: 0.5, position: 'relative', zIndex: 1 }}
               >
                 <ListItemButton
+                  // @ts-ignore capture root element
+                  ref={isSelected ? activeButtonRef : null}
                   selected={isSelected}
                   onClick={(e) => handleOpenBookmark(bm, e.ctrlKey)}
                   sx={{
+                    my: 0, // kill default vertical margin (was causing extra top/bottom space)
                     py: 1.5,
                     px: 2,
                     borderRadius: 2,
                     border: '1px solid transparent',
-                    backgroundColor: isSelected 
-                      ? alpha('#3B82F6', 0.15)
-                      : 'transparent',
+                    backgroundColor: 'transparent !important',
                     '&:hover': {
-                      backgroundColor: isSelected 
-                        ? alpha('#3B82F6', 0.25)
-                        : alpha('#64748B', 0.1),
-                      transform: 'none', // Remove transform to prevent scrollbar
+                      backgroundColor: isSelected ? 'transparent' : 'rgba(100,116,139,0.12)',
+                      transform: 'none'
                     },
-                    '&.Mui-selected': {
-                      borderColor: 'primary.main',
-                    },
-                    // Prevent layout shifts
+                    '&.Mui-selected': { borderColor: 'transparent' },
                     minHeight: 'auto',
-                    overflow: 'hidden',
+                    overflow: 'hidden'
                   }}
                 >
-                  <Box sx={{ 
-                    display: 'flex', 
+                  <Box sx={{
+                    display: 'flex',
                     alignItems: 'center',
                     width: '100%',
                     gap: 1.5
@@ -308,61 +346,83 @@ export default function BookmarkOpen() {
                       width: 32,
                       height: 32,
                       borderRadius: 1.5,
-                      backgroundColor: isSelected 
-                        ? 'primary.main' 
-                        : alpha('#94A3B8', 0.2),
+                      backgroundColor: isSelected ? 'primary.main' : 'rgba(148,163,184,0.20)',
                       color: isSelected ? 'white' : 'text.secondary',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      transition: 'background-color 140ms, color 140ms'
                     }}>
                       <BookmarkOutlined fontSize="small" />
                     </Box>
-                    
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
+                      <Typography
+                        variant="body2"
+                        sx={{
                           fontWeight: 500,
                           color: isSelected ? 'white' : 'text.primary',
                           mb: 0.25,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          transition: 'color 140ms'
                         }}
                       >
                         {bm.title}
                       </Typography>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: isSelected ? alpha('#ffffff', 0.8) : 'text.secondary',
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: isSelected ? 'rgba(255,255,255,0.85)' : 'text.secondary',
                           fontSize: '0.75rem',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          display: 'block'
+                          display: 'block',
+                          transition: 'color 140ms'
                         }}
                       >
                         {getDomainFromUrl(bm.url)}
                       </Typography>
                     </Box>
-
-                    {isSelected && (
-                      <Tooltip title="More actions">
-                        <IconButton
-                          size="small"
-                          sx={{
-                            width: 28,
-                            height: 28,
-                            color: 'white',
-                            backgroundColor: alpha('#ffffff', 0.2),
-                            '&:hover': { backgroundColor: alpha('#ffffff', 0.3) }
-                          }}
-                          onClick={(e) => handleOpenActionsMenu(e, bm)}
-                        >
-                          <MoreVert sx={{ fontSize: 18 }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    {/* Action button wrapper always mounted so we can animate smoothly */}
+                    <Box
+                      sx={{
+                        width: 32, // reserve horizontal space (icon + some gap)
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        flexShrink: 0,
+                        position: 'relative'
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.4,0,.2,1)',
+                          opacity: isSelected ? 1 : 0,
+                          transform: isSelected ? 'translateX(0)' : 'translateX(4px)',
+                          pointerEvents: isSelected ? 'auto' : 'none'
+                        }}
+                      >
+                        <Tooltip title="More actions" disableInteractive>
+                          <IconButton
+                            size="small"
+                            sx={{
+                              width: 28,
+                              height: 28,
+                              color: 'white',
+                              backgroundColor: 'rgba(255,255,255,0.22)',
+                              '&:hover': { backgroundColor: 'rgba(255,255,255,0.32)' },
+                              transition: 'background-color 140ms'
+                            }}
+                            onClick={(e) => handleOpenActionsMenu(e, bm)}
+                          >
+                            <MoreVert sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
                   </Box>
                 </ListItemButton>
               </ListItem>

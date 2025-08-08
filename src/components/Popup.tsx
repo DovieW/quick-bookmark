@@ -109,6 +109,39 @@ const Popup = () => {
     });
   }, []);
 
+  // Allow switching modes while popup is already open using the same shortcuts
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      // Ctrl + D => add mode
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        if (quickMode !== 'add') {
+          e.preventDefault();
+          e.stopPropagation();
+          chrome.storage.local.set({ quickMode: 'add' });
+          setQuickMode('add');
+        } else {
+          // prevent browser default bookmarking even if already in mode
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+      // Alt + F => open mode
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        if (quickMode !== 'open') {
+          e.preventDefault();
+          e.stopPropagation();
+          chrome.storage.local.set({ quickMode: 'open' });
+          setQuickMode('open');
+        } else {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKey, { capture: true });
+    return () => window.removeEventListener('keydown', handleKey, { capture: true } as any);
+  }, [quickMode]);
+
   // lock outer body scrolling and size
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;

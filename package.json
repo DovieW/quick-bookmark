@@ -5,7 +5,8 @@
   "author": "Your Name",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "watch": "vite build --watch --mode development"
   },
   "dependencies": {
     "@emotion/react": "^11.10.6",

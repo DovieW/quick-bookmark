@@ -1,282 +1,149 @@
-import { useEffect, useState } from "react";
-import {
-  ThemeProvider,
-  createTheme,
-  Typography,
-  Box,
-  Chip,
-} from "@mui/material";
-import { BookmarkAdd, Search } from "@mui/icons-material";
-import BookmarkOpen from "./BookmarkOpen";
-import FolderSearch from "./FolderSearch";
+import { mountBookmarkOpen } from "./BookmarkOpen";
+import { mountFolderSearch } from "./FolderSearch";
 import "../popup/popup.css";
 import { readQuickMode, writeQuickMode, type QuickMode } from "../quickMode";
+import { createIcon } from "../popup/icons";
 
-const darkTheme = createTheme({
-  palette: {
-    mode: "dark",
-    primary: {
-      main: "#3B82F6",
-      light: "#60A5FA",
-      dark: "#1D4ED8",
-    },
-    secondary: {
-      main: "#10B981",
-      light: "#34D399",
-      dark: "#059669",
-    },
-    background: {
-      default: "#0F172A",
-      paper: "#1E293B",
-    },
-    text: {
-      primary: "#F1F5F9",
-      secondary: "#94A3B8",
-    },
-    divider: "#334155",
-  },
-  shape: {
-    borderRadius: 12,
-  },
-  typography: {
-    fontFamily: '"Inter", "Segoe UI", "Roboto", sans-serif',
-    h6: {
-      fontWeight: 600,
-      fontSize: "1.1rem",
-    },
-  },
-  components: {
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          "& .MuiOutlinedInput-root": {
-            borderRadius: 12,
-            backgroundColor: "#1E293B",
-            transition: "all 0.2s ease-in-out",
-            "&:hover": {
-              backgroundColor: "#293548",
-            },
-            "&.Mui-focused": {
-              backgroundColor: "#293548",
-              "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "#3B82F6",
-                borderWidth: 2,
-              },
-            },
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#475569",
-            },
-          },
-          "& .MuiInputLabel-root": {
-            color: "#94A3B8",
-            "&.Mui-focused": {
-              color: "#3B82F6",
-            },
-          },
-        },
-      },
-    },
-    MuiListItemButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          margin: "2px 0",
-          transition: "all 0.2s ease-in-out",
-          "&:hover": {
-            backgroundColor: "#293548",
-            // Removed transform to prevent scrollbar issues
-          },
-          "&.Mui-selected": {
-            backgroundColor: "#3B82F6",
-            "&:hover": {
-              backgroundColor: "#2563EB",
-            },
-          },
-        },
-      },
-    },
-    MuiList: {
-      styleOverrides: {
-        root: {
-          padding: "8px 0",
-        },
-      },
-    },
-  },
-});
+interface ViewController {
+  destroy(): void;
+}
 
-const Popup = () => {
-  const [quickMode, setQuickMode] = useState<QuickMode | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    void readQuickMode().then((mode) => {
-      if (isMounted) {
-        setQuickMode(mode);
-      }
-    });
-
-    return () => {
-      isMounted = false;
+function getModeMeta(mode: QuickMode | null) {
+  if (mode === "open") {
+    return {
+      title: "Quick Open",
+      subtitle: "Search and open bookmarks",
+      shortcut: "Alt+F",
+      icon: "search" as const,
     };
-  }, []);
+  }
 
-  // Allow switching modes while popup is already open using the same shortcuts
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      // Ctrl + D => add mode
-      if (
-        e.ctrlKey &&
-        !e.shiftKey &&
-        !e.altKey &&
-        e.key.toLowerCase() === "d"
-      ) {
-        if (quickMode !== "add") {
-          e.preventDefault();
-          e.stopPropagation();
-          void writeQuickMode("add");
-          setQuickMode("add");
-        } else {
-          // prevent browser default bookmarking even if already in mode
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }
-      // Alt + F => open mode
-      if (
-        e.altKey &&
-        !e.ctrlKey &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "f"
-      ) {
-        if (quickMode !== "open") {
-          e.preventDefault();
-          e.stopPropagation();
-          void writeQuickMode("open");
-          setQuickMode("open");
-        } else {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKey, true);
-    return () => window.removeEventListener("keydown", handleKey, true);
-  }, [quickMode]);
+  return {
+    title: "Quick Bookmark",
+    subtitle: mode === null ? "Loading…" : "Save to folder",
+    shortcut: "Ctrl+D",
+    icon: "bookmark-add" as const,
+  };
+}
 
-  // lock outer body scrolling and size
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    const originalMargin = document.body.style.margin;
-    document.body.style.overflow = "hidden";
-    document.body.style.margin = "0";
-    return () => {
+export function mountPopup(root: HTMLElement): ViewController {
+  let quickMode: QuickMode | null = null;
+  let currentView: ViewController | null = null;
+
+  const shell = document.createElement("div");
+  shell.className = "popup-shell";
+
+  const header = document.createElement("header");
+  header.className = "popup-header";
+
+  const iconWrapper = document.createElement("div");
+  iconWrapper.className = "header-icon";
+
+  const headerText = document.createElement("div");
+  headerText.className = "header-copy";
+
+  const title = document.createElement("h1");
+  title.className = "header-title";
+
+  const subtitle = document.createElement("p");
+  subtitle.className = "header-subtitle";
+
+  const shortcut = document.createElement("span");
+  shortcut.className = "shortcut-badge";
+
+  headerText.append(title, subtitle);
+  header.append(iconWrapper, headerText, shortcut);
+
+  const content = document.createElement("main");
+  content.className = "popup-content";
+
+  shell.append(header, content);
+  root.replaceChildren(shell);
+
+  const originalOverflow = document.body.style.overflow;
+  const originalMargin = document.body.style.margin;
+  document.body.style.overflow = "hidden";
+  document.body.style.margin = "0";
+
+  const render = () => {
+    const meta = getModeMeta(quickMode);
+    iconWrapper.replaceChildren(createIcon(meta.icon, 20));
+    title.textContent = meta.title;
+    subtitle.textContent = meta.subtitle;
+    shortcut.textContent = meta.shortcut;
+
+    currentView?.destroy();
+    currentView = null;
+    content.replaceChildren();
+
+    if (quickMode === null) {
+      const loading = document.createElement("div");
+      loading.className = "popup-loading";
+      loading.textContent = "Loading…";
+      content.append(loading);
+      return;
+    }
+
+    currentView =
+      quickMode === "open"
+        ? mountBookmarkOpen(content)
+        : mountFolderSearch(content);
+  };
+
+  const setMode = (mode: QuickMode) => {
+    quickMode = mode;
+    render();
+  };
+
+  const handleKey = (event: KeyboardEvent) => {
+    if (
+      event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "d"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (quickMode !== "add") {
+        void writeQuickMode("add");
+        setMode("add");
+      }
+
+      return;
+    }
+
+    if (
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      event.key.toLowerCase() === "f"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (quickMode !== "open") {
+        void writeQuickMode("open");
+        setMode("open");
+      }
+    }
+  };
+
+  window.addEventListener("keydown", handleKey, true);
+
+  render();
+
+  void readQuickMode().then((mode) => {
+    setMode(mode);
+  });
+
+  return {
+    destroy() {
+      window.removeEventListener("keydown", handleKey, true);
+      currentView?.destroy();
       document.body.style.overflow = originalOverflow;
       document.body.style.margin = originalMargin;
-    };
-  }, []);
-
-  const isLoadingMode = quickMode === null;
-  const isOpenMode = quickMode === "open";
-
-  return (
-    <ThemeProvider theme={darkTheme}>
-      <Box
-        sx={{
-          width: 520,
-          height: 560, // within Chrome popup max to prevent outer scroll
-          display: "flex",
-          flexDirection: "column",
-          backgroundColor: "background.default",
-          color: "text.primary",
-          p: 2.5,
-        }}
-      >
-        {/* Header simplified (no gradients) */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            mb: 2,
-            pb: 1.5,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          }}
-        >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 40,
-              height: 40,
-              borderRadius: 2,
-              backgroundColor: "#1E293B",
-              color: "text.primary",
-            }}
-          >
-            {isOpenMode ? <Search /> : <BookmarkAdd />}
-          </Box>
-
-          <Box sx={{ flex: 1 }}>
-            <Typography
-              variant="h6"
-              sx={{ color: "text.primary", fontWeight: 600 }}
-            >
-              {isOpenMode ? "Quick Open" : "Quick Bookmark"}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ color: "text.secondary", fontSize: "0.85rem" }}
-            >
-              {isOpenMode ? "Search and open bookmarks" : "Save to folder"}
-            </Typography>
-          </Box>
-
-          <Chip
-            label={isOpenMode ? "Alt+F" : "Ctrl+D"}
-            size="small"
-            sx={{
-              backgroundColor: "background.paper",
-              color: "text.secondary",
-              fontSize: "0.75rem",
-              height: 24,
-            }}
-          />
-        </Box>
-
-        {/* Content area */}
-        <Box
-          sx={{
-            flex: 1,
-            overflowY: "auto",
-            overflowX: "hidden",
-            minWidth: 0,
-            width: "100%",
-            "&::-webkit-scrollbar": { width: "6px" },
-            "&::-webkit-scrollbar-track": { background: "transparent" },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: "#475569",
-              borderRadius: "3px",
-              "&:hover": { backgroundColor: "#64748B" },
-            },
-          }}
-        >
-          {isLoadingMode ? (
-            <Box sx={{ p: 2, fontSize: 13, color: "text.secondary" }}>
-              Loading…
-            </Box>
-          ) : isOpenMode ? (
-            <BookmarkOpen />
-          ) : (
-            <FolderSearch />
-          )}
-        </Box>
-      </Box>
-    </ThemeProvider>
-  );
-};
-
-export default Popup;
+      root.replaceChildren();
+    },
+  };
+}

@@ -1,36 +1,41 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { createTheme, ThemeProvider, Typography } from '@mui/material';
-import BookmarkOpen from './components/BookmarkOpen';
-import './popup/popup.css'; // Reuse the same dark theme CSS if you want
+import { mountBookmarkOpen } from "./components/BookmarkOpen";
+import { createIcon } from "./popup/icons";
+import "./popup/popup.css";
 
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#0D1117'
-    },
-    text: {
-      primary: '#C9D1D9'
-    }
-  }
-});
+const rootElement = document.getElementById("root");
 
-function OpenPopup() {
-  return (
-    <ThemeProvider theme={darkTheme}>
-      <div style={{ minWidth: 300, minHeight: 400, padding: '1rem' }}>
-        <Typography variant="h6" gutterBottom>
-          Quick Open
-        </Typography>
-        <BookmarkOpen />
-      </div>
-    </ThemeProvider>
-  );
+if (!rootElement) {
+  throw new Error("Open popup root element was not found.");
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <OpenPopup />
-  </React.StrictMode>
-);
+const wrapper = document.createElement("div");
+wrapper.className = "open-standalone";
+
+const heading = document.createElement("div");
+heading.className = "open-standalone__header";
+
+const icon = document.createElement("div");
+icon.className = "header-icon";
+icon.append(createIcon("search", 20));
+
+const copy = document.createElement("div");
+copy.className = "header-copy";
+
+const title = document.createElement("h1");
+title.className = "header-title";
+title.textContent = "Quick Open";
+
+const subtitle = document.createElement("p");
+subtitle.className = "header-subtitle";
+subtitle.textContent = "Search and open bookmarks";
+
+copy.append(title, subtitle);
+heading.append(icon, copy);
+
+const content = document.createElement("div");
+content.className = "open-standalone__content";
+
+wrapper.append(heading, content);
+rootElement.replaceChildren(wrapper);
+
+mountBookmarkOpen(content);

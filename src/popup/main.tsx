@@ -1,10 +1,11 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import Popup from '../components/Popup';
-import './popup.css'; // dark theme styling
+import ReactDOM from "react-dom/client";
+import Popup from "../components/Popup";
+import "./popup.css"; // dark theme styling
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <Popup />
-  </React.StrictMode>
-);
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error("Popup root element was not found.");
+}
+
+ReactDOM.createRoot(rootElement).render(<Popup />);

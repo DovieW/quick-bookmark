@@ -1,80 +1,117 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   TextField,
   List,
   ListItem,
   ListItemButton,
-  ListItemText,
   Box,
   Typography,
-  alpha,
   IconButton,
-  Tooltip
-} from '@mui/material';
-import { FolderOutlined, FolderOpen } from '@mui/icons-material';
-import Fuse from 'fuse.js';
-
-interface BookmarkFolder {
-  id: string;
-  title: string;
-  path: string; // full path, excluding any "ROOT"
-}
+  Tooltip,
+} from "@mui/material";
+import { FolderOutlined, FolderOpen } from "@mui/icons-material";
+import Fuse from "fuse.js";
+import {
+  getFreshBookmarkCache,
+  subscribeToBookmarkCache,
+  type BookmarkFolder,
+} from "../bookmarkCache";
 
 export default function FolderSearch() {
   const [folders, setFolders] = useState<BookmarkFolder[]>([]);
   const [filtered, setFiltered] = useState<BookmarkFolder[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const activeItemRef = useRef<HTMLLIElement>(null);
   const listRef = useRef<HTMLUListElement>(null); // highlight container
-  const [highlight, setHighlight] = useState<{ top: number; height: number; left: number; width: number } | null>(null);
+  const [highlight, setHighlight] = useState<{
+    top: number;
+    height: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const activeButtonRef = useRef<HTMLDivElement>(null);
-  const [fuse, setFuse] = useState<Fuse<BookmarkFolder>>();
+  const fuseRef = useRef<Fuse<BookmarkFolder> | null>(null);
 
-  useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-    fetchFolders();
+  const fetchFolders = useCallback(async () => {
+    const cache = await getFreshBookmarkCache();
+    setFolders(cache.folders);
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+
+    void fetchFolders().then(() => {
+      if (!isMounted) {
+        return;
+      }
+    });
+
+    const unsubscribe = subscribeToBookmarkCache((cache) => {
+      if (isMounted) {
+        setFolders(cache.folders);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [fetchFolders]);
+
+  useEffect(() => {
     if (folders.length > 0) {
-      const fuseInstance = new Fuse(folders, {
-        keys: ['title', 'path'],
-        threshold: 0.3
-      });
-      setFuse(fuseInstance);
       setFiltered(folders);
       setActiveIndex(0);
+      fuseRef.current = null;
+    } else {
+      setFiltered([]);
+      setActiveIndex(0);
+      fuseRef.current = null;
     }
   }, [folders]);
 
   useEffect(() => {
+    const activeFolder = filtered[activeIndex];
+
+    if (!activeFolder) {
+      return;
+    }
+
     if (activeItemRef.current) {
       activeItemRef.current.scrollIntoView({
-        block: 'nearest',
-        behavior: 'smooth'
+        block: "nearest",
+        behavior: "smooth",
       });
     }
-  }, [activeIndex]);
+  }, [activeIndex, filtered]);
 
   useEffect(() => {
-    // Ensure activeIndex is always within bounds when filtered array changes
-    const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
-    if (filtered.length > 0 && activeIndex > maxDisplayedIndex) {
-      setActiveIndex(maxDisplayedIndex);
-    } else if (filtered.length === 0) {
-      setActiveIndex(0);
-    }
-  }, [filtered, activeIndex]);
+    setActiveIndex((previousIndex) => {
+      if (filtered.length === 0) {
+        return 0;
+      }
+
+      const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
+      return previousIndex > maxDisplayedIndex
+        ? maxDisplayedIndex
+        : previousIndex;
+    });
+  }, [filtered.length]);
 
   useEffect(() => {
-    if (filtered.length === 0) {
+    const activeFolder = filtered[activeIndex];
+
+    if (!activeFolder) {
       setHighlight(null);
       return;
     }
+
     if (activeItemRef.current && activeButtonRef.current) {
       const item = activeItemRef.current; // The ListItem
       const btn = activeButtonRef.current as HTMLDivElement;
@@ -87,56 +124,23 @@ export default function FolderSearch() {
     }
   }, [activeIndex, filtered]);
 
-  const fetchFolders = () => {
-    chrome.bookmarks.getTree((bookmarkTreeNodes) => {
-      const allFolders: BookmarkFolder[] = [];
-      bookmarkTreeNodes.forEach((rootNode) => {
-        traverseBookmarks(rootNode, '', allFolders);
-      });
-      setFolders(allFolders);
-    });
-  };
-
-  const traverseBookmarks = (
-    node: chrome.bookmarks.BookmarkTreeNode,
-    currentPath: string,
-    folderList: BookmarkFolder[]
-  ) => {
-    if (!node) return;
-
-    if (node.children) {
-      if (node.title && node.title.trim() !== '') {
-        const newPath = currentPath
-          ? `${currentPath}/${node.title}`
-          : node.title;
-
-        folderList.push({
-          id: node.id,
-          title: node.title,
-          path: newPath
-        });
-
-        node.children.forEach((child) => {
-          traverseBookmarks(child, newPath, folderList);
-        });
-      } else {
-        node.children.forEach((child) => {
-          traverseBookmarks(child, currentPath, folderList);
-        });
-      }
-    }
-  };
-
   const handleSearch = (term: string) => {
     setSearchTerm(term);
 
-    if (!fuse || !term) {
+    if (!term) {
       setFiltered(folders);
       setActiveIndex(0);
       return;
     }
 
-    const results = fuse.search(term).map((r) => r.item);
+    if (!fuseRef.current) {
+      fuseRef.current = new Fuse(folders, {
+        keys: ["title", "path"],
+        threshold: 0.3,
+      });
+    }
+
+    const results = fuseRef.current.search(term).map((r) => r.item);
     setFiltered(results);
     setActiveIndex(0);
   };
@@ -147,22 +151,22 @@ export default function FolderSearch() {
     if (currentTab) {
       chrome.bookmarks.create({
         parentId: folderId,
-        title: currentTab.title ?? 'Untitled',
-        url: currentTab.url
+        title: currentTab.title ?? "Untitled",
+        url: currentTab.url,
       });
       window.close();
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       if (filtered.length > 0 && activeIndex < filtered.length) {
         handleSelectFolder(filtered[activeIndex].id);
       }
       return;
     }
 
-    if ((e.ctrlKey && e.key.toLowerCase() === 'n') || e.key === 'ArrowDown') {
+    if ((e.ctrlKey && e.key.toLowerCase() === "n") || e.key === "ArrowDown") {
       e.preventDefault();
       if (filtered.length > 0) {
         const maxDisplayedIndex = Math.min(filtered.length - 1, 19); // Only go to the last displayed item
@@ -171,7 +175,7 @@ export default function FolderSearch() {
       return;
     }
 
-    if ((e.ctrlKey && e.key.toLowerCase() === 'p') || e.key === 'ArrowUp') {
+    if ((e.ctrlKey && e.key.toLowerCase() === "p") || e.key === "ArrowUp") {
       e.preventDefault();
       if (filtered.length > 0) {
         setActiveIndex((prev) => Math.max(prev - 1, 0));
@@ -187,7 +191,7 @@ export default function FolderSearch() {
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <TextField
         inputRef={searchInputRef}
         placeholder="Search folders..."
@@ -197,48 +201,55 @@ export default function FolderSearch() {
         onChange={(e) => handleSearch(e.target.value)}
         onKeyDown={handleKeyDown}
         size="small"
-        sx={{ 
+        sx={{
           mb: 2,
-          '& .MuiOutlinedInput-input': {
-            fontSize: '0.95rem',
-          }
+          "& .MuiOutlinedInput-input": {
+            fontSize: "0.95rem",
+          },
         }}
       />
-      
-      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
-        <List sx={{ py: 0.5, width: '100%', pr: 1, position: 'relative' }} ref={listRef}>
+
+      <Box
+        sx={{ flex: 1, overflowY: "auto", overflowX: "hidden", minWidth: 0 }}
+      >
+        <List
+          sx={{ py: 0.5, width: "100%", pr: 1, position: "relative" }}
+          ref={listRef}
+        >
           {highlight && (
             <Box
               sx={{
-                position: 'absolute',
+                position: "absolute",
                 top: highlight.top,
                 left: highlight.left,
                 width: highlight.width,
                 height: highlight.height,
                 // background: 'linear-gradient(90deg, rgba(59,130,246,0.30), rgba(59,130,246,0.18) 55%, rgba(59,130,246,0.05))',
-                background: 'rgba(59,130,246,0.30)',
+                background: "rgba(59,130,246,0.30)",
                 borderRadius: 2,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.45)',
-                backdropFilter: 'blur(1.5px)',
-                WebkitBackdropFilter: 'blur(1.5px)',
-                pointerEvents: 'none',
-                transition: 'top 140ms cubic-bezier(.4,0,.2,1), height 140ms, width 140ms',
+                boxShadow:
+                  "0 1px 2px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.45)",
+                backdropFilter: "blur(1.5px)",
+                WebkitBackdropFilter: "blur(1.5px)",
+                pointerEvents: "none",
+                transition:
+                  "top 140ms cubic-bezier(.4,0,.2,1), height 140ms, width 140ms",
                 zIndex: 0,
-                willChange: 'top,height,width'
+                willChange: "top,height,width",
               }}
             />
           )}
           {filtered.slice(0, 20).map((folder, index) => {
-            const isSelected = index === activeIndex && activeIndex < filtered.length;
+            const isSelected =
+              index === activeIndex && activeIndex < filtered.length;
             return (
               <ListItem
                 key={folder.id}
                 disablePadding
                 ref={isSelected ? activeItemRef : null}
-                sx={{ mb: 0.5, position: 'relative', zIndex: 1 }}
+                sx={{ mb: 0.5, position: "relative", zIndex: 1 }}
               >
                 <ListItemButton
-                  // @ts-ignore
                   ref={isSelected ? activeButtonRef : null}
                   selected={isSelected}
                   onClick={() => handleSelectFolder(folder.id)}
@@ -247,30 +258,43 @@ export default function FolderSearch() {
                     py: 1.5,
                     px: 2,
                     borderRadius: 2,
-                    border: '1px solid transparent',
-                    backgroundColor: 'transparent !important',
-                    '&:hover': {
-                      backgroundColor: isSelected ? 'transparent' : 'rgba(100,116,139,0.12)',
-                      transform: 'none'
+                    border: "1px solid transparent",
+                    backgroundColor: "transparent !important",
+                    "&:hover": {
+                      backgroundColor: isSelected
+                        ? "transparent"
+                        : "rgba(100,116,139,0.12)",
+                      transform: "none",
                     },
-                    '&.Mui-selected': { borderColor: 'transparent' },
-                    minHeight: 'auto',
-                    overflow: 'hidden'
+                    "&.Mui-selected": { borderColor: "transparent" },
+                    minHeight: "auto",
+                    overflow: "hidden",
                   }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                    <Box sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 32,
-                      height: 32,
-                      borderRadius: 1.5,
-                      backgroundColor: isSelected ? 'primary.main' : 'rgba(148,163,184,0.20)',
-                      color: isSelected ? 'white' : 'text.secondary',
-                      flexShrink: 0,
-                      transition: 'background-color 140ms, color 140ms'
-                    }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      width: "100%",
+                      gap: 1.5,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 32,
+                        height: 32,
+                        borderRadius: 1.5,
+                        backgroundColor: isSelected
+                          ? "primary.main"
+                          : "rgba(148,163,184,0.20)",
+                        color: isSelected ? "white" : "text.secondary",
+                        flexShrink: 0,
+                        transition: "background-color 140ms, color 140ms",
+                      }}
+                    >
                       <FolderOutlined fontSize="small" />
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -278,12 +302,12 @@ export default function FolderSearch() {
                         variant="body2"
                         sx={{
                           fontWeight: 500,
-                          color: isSelected ? 'white' : 'text.primary',
+                          color: isSelected ? "white" : "text.primary",
                           mb: 0.25,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          transition: 'color 140ms'
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          transition: "color 140ms",
                         }}
                       >
                         {folder.title}
@@ -291,49 +315,59 @@ export default function FolderSearch() {
                       <Typography
                         variant="caption"
                         sx={{
-                          color: isSelected ? 'rgba(255,255,255,0.85)' : 'text.secondary',
-                          fontSize: '0.75rem',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          display: 'block',
-                          transition: 'color 140ms'
+                          color: isSelected
+                            ? "rgba(255,255,255,0.85)"
+                            : "text.secondary",
+                          fontSize: "0.75rem",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          display: "block",
+                          transition: "color 140ms",
                         }}
                       >
-                        {folder.path.replace(/^ROOT\//, '')}
+                        {folder.path.replace(/^ROOT\//, "")}
                       </Typography>
                     </Box>
                     <Box
                       sx={{
                         width: 32,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
                         flexShrink: 0,
-                        position: 'relative'
+                        position: "relative",
                       }}
                     >
                       <Box
                         sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          transition: 'opacity 160ms ease, transform 180ms cubic-bezier(.4,0,.2,1)',
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition:
+                            "opacity 160ms ease, transform 180ms cubic-bezier(.4,0,.2,1)",
                           opacity: isSelected ? 1 : 0,
-                          transform: isSelected ? 'translateX(0)' : 'translateX(4px)',
-                          pointerEvents: isSelected ? 'auto' : 'none'
+                          transform: isSelected
+                            ? "translateX(0)"
+                            : "translateX(4px)",
+                          pointerEvents: isSelected ? "auto" : "none",
                         }}
                       >
-                        <Tooltip title="Open manager to folder" disableInteractive>
+                        <Tooltip
+                          title="Open manager to folder"
+                          disableInteractive
+                        >
                           <IconButton
                             size="small"
                             sx={{
                               width: 28,
                               height: 28,
-                              color: 'white',
-                              backgroundColor: 'rgba(255,255,255,0.22)',
-                              '&:hover': { backgroundColor: 'rgba(255,255,255,0.32)' },
-                              transition: 'background-color 140ms'
+                              color: "white",
+                              backgroundColor: "rgba(255,255,255,0.22)",
+                              "&:hover": {
+                                backgroundColor: "rgba(255,255,255,0.32)",
+                              },
+                              transition: "background-color 140ms",
                             }}
                             onClick={(e) => {
                               e.preventDefault();

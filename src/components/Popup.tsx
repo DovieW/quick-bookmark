@@ -1,33 +1,59 @@
 import { mountBookmarkOpen } from "./BookmarkOpen";
 import { mountFolderSearch } from "./FolderSearch";
+import { mountYouTubePlaylistPicker } from "./YouTubePlaylistPicker";
 import "../popup/popup.css";
-import { readQuickMode, writeQuickMode, type QuickMode } from "../quickMode";
-import { createIcon } from "../popup/icons";
+import {
+  createQuickPopupContext,
+  readQuickPopupContext,
+  writeQuickPopupContext,
+  type QuickPopupContext,
+} from "../quickMode";
+import { createIcon, type IconName } from "../popup/icons";
 
 interface ViewController {
   destroy(): void;
 }
 
-function getModeMeta(mode: QuickMode | null) {
-  if (mode === "open") {
+interface ModeMeta {
+  title: string;
+  subtitle: string;
+  shortcut: string;
+  icon: IconName;
+  isYouTube: boolean;
+}
+
+function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
+  if (popupContext?.mode === "open") {
     return {
       title: "Quick Open",
       subtitle: "Search and open bookmarks",
       shortcut: "Alt+F",
-      icon: "search" as const,
+      icon: "search",
+      isYouTube: false,
+    };
+  }
+
+  if (popupContext?.mode === "youtube" && popupContext.youtubeVideo) {
+    return {
+      title: "Quick Playlist",
+      subtitle: "Add or remove this video from a YouTube playlist",
+      shortcut: "Ctrl+D",
+      icon: "playlist-add",
+      isYouTube: true,
     };
   }
 
   return {
     title: "Quick Bookmark",
-    subtitle: mode === null ? "Loading…" : "Save to folder",
+    subtitle: popupContext === null ? "Loading…" : "Save to folder",
     shortcut: "Ctrl+D",
-    icon: "bookmark-add" as const,
+    icon: "bookmark-add",
+    isYouTube: false,
   };
 }
 
 export function mountPopup(root: HTMLElement): ViewController {
-  let quickMode: QuickMode | null = null;
+  let popupContext: QuickPopupContext | null = null;
   let currentView: ViewController | null = null;
 
   const shell = document.createElement("div");
@@ -66,17 +92,19 @@ export function mountPopup(root: HTMLElement): ViewController {
   document.body.style.margin = "0";
 
   const render = () => {
-    const meta = getModeMeta(quickMode);
+    const meta = getModeMeta(popupContext);
+
     iconWrapper.replaceChildren(createIcon(meta.icon, 20));
     title.textContent = meta.title;
     subtitle.textContent = meta.subtitle;
     shortcut.textContent = meta.shortcut;
+    shell.classList.toggle("popup-shell--youtube", meta.isYouTube);
 
     currentView?.destroy();
     currentView = null;
     content.replaceChildren();
 
-    if (quickMode === null) {
+    if (popupContext === null) {
       const loading = document.createElement("div");
       loading.className = "popup-loading";
       loading.textContent = "Loading…";
@@ -84,18 +112,29 @@ export function mountPopup(root: HTMLElement): ViewController {
       return;
     }
 
-    currentView =
-      quickMode === "open"
-        ? mountBookmarkOpen(content)
-        : mountFolderSearch(content);
+    if (popupContext.mode === "open") {
+      currentView = mountBookmarkOpen(content);
+      return;
+    }
+
+    if (popupContext.mode === "youtube" && popupContext.youtubeVideo) {
+      currentView = mountYouTubePlaylistPicker(content, popupContext.youtubeVideo);
+      return;
+    }
+
+    currentView = mountFolderSearch(content);
   };
 
-  const setMode = (mode: QuickMode) => {
-    quickMode = mode;
+  const setPopupContext = (nextPopupContext: QuickPopupContext) => {
+    popupContext = nextPopupContext;
     render();
   };
 
   const handleKey = (event: KeyboardEvent) => {
+    if (!popupContext) {
+      return;
+    }
+
     if (
       event.ctrlKey &&
       !event.shiftKey &&
@@ -105,11 +144,15 @@ export function mountPopup(root: HTMLElement): ViewController {
       event.preventDefault();
       event.stopPropagation();
 
-      if (quickMode !== "add") {
-        void writeQuickMode("add");
-        setMode("add");
-      }
+      const nextPopupContext = popupContext.canToggleYoutubeAdd
+        ? createQuickPopupContext(
+            popupContext.mode === "youtube" ? "add" : "youtube",
+            popupContext.youtubeVideo,
+          )
+        : createQuickPopupContext("add");
 
+      void writeQuickPopupContext(nextPopupContext);
+      setPopupContext(nextPopupContext);
       return;
     }
 
@@ -122,20 +165,22 @@ export function mountPopup(root: HTMLElement): ViewController {
       event.preventDefault();
       event.stopPropagation();
 
-      if (quickMode !== "open") {
-        void writeQuickMode("open");
-        setMode("open");
-      }
+      const nextPopupContext = createQuickPopupContext(
+        "open",
+        popupContext.canToggleYoutubeAdd ? popupContext.youtubeVideo : null,
+      );
+      void writeQuickPopupContext(nextPopupContext);
+      setPopupContext(nextPopupContext);
     }
   };
 
   window.addEventListener("keydown", handleKey, true);
 
-  render();
-
-  void readQuickMode().then((mode) => {
-    setMode(mode);
+  void readQuickPopupContext().then((nextPopupContext) => {
+    setPopupContext(nextPopupContext);
   });
+
+  render();
 
   return {
     destroy() {

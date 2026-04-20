@@ -1,13 +1,15 @@
 import Fuse from "fuse.js";
-import {
-  getFreshBookmarkCache,
-  subscribeToBookmarkCache,
-  type BookmarkItem,
-} from "../bookmarkCache";
 import { createIcon } from "../popup/icons";
 
 interface ViewController {
   destroy(): void;
+}
+
+interface BookmarkItem {
+  id: string;
+  title: string;
+  url: string;
+  parentId?: string;
 }
 
 function createEmptyState(label: string) {
@@ -15,6 +17,34 @@ function createEmptyState(label: string) {
   emptyState.className = "empty-state";
   emptyState.textContent = label;
   return emptyState;
+}
+
+function collectBookmarks(
+  node: chrome.bookmarks.BookmarkTreeNode,
+  result: BookmarkItem[],
+) {
+  if (node.url) {
+    result.push({
+      id: node.id,
+      title: node.title || "(Untitled)",
+      url: node.url,
+      parentId: node.parentId,
+    });
+  }
+
+  if (node.children) {
+    node.children.forEach((child) => {
+      collectBookmarks(child, result);
+    });
+  }
+}
+
+function getBookmarkTree(): Promise<chrome.bookmarks.BookmarkTreeNode[]> {
+  return new Promise((resolve) => {
+    chrome.bookmarks.getTree((nodes) => {
+      resolve(nodes);
+    });
+  });
 }
 
 function getDomainFromUrl(url: string) {
@@ -101,7 +131,7 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
     }
 
     const anchorRect = menuAnchor.getBoundingClientRect();
-    const menuWidth = menu.offsetWidth || 180;
+    const menuWidth = menu.offsetWidth || 188;
     const menuHeight = menu.offsetHeight || 0;
     const left = Math.max(
       8,
@@ -121,29 +151,6 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
     menu.hidden = true;
     menuBookmark = null;
     menuAnchor = null;
-  };
-
-  const openMenu = (bookmark: BookmarkItem, anchor: HTMLElement) => {
-    menuBookmark = bookmark;
-    menuAnchor = anchor;
-    menu.hidden = false;
-    positionMenu();
-  };
-
-  const updateHighlight = () => {
-    if (!selectedItem || !selectedButton) {
-      highlight.hidden = true;
-      return;
-    }
-
-    const gutter = 3;
-    highlight.hidden = false;
-    highlight.style.top = `${selectedItem.offsetTop}px`;
-    highlight.style.height = `${selectedButton.offsetHeight}px`;
-    highlight.style.width = `${Math.max(selectedButton.offsetWidth - gutter * 2, 0)}px`;
-    highlight.style.left = `${gutter}px`;
-
-    selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
 
   const handleOpenBookmark = async (
@@ -204,7 +211,6 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
     }
 
     const activeBookmark = menuBookmark;
-
     const actions = [
       {
         label: "Open manager to folder",
@@ -242,6 +248,29 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
       });
       menu.append(button);
     });
+  };
+
+  const openMenu = (bookmark: BookmarkItem, anchor: HTMLElement) => {
+    menuBookmark = bookmark;
+    menuAnchor = anchor;
+    renderMenu();
+    menu.hidden = false;
+    positionMenu();
+  };
+
+  const updateHighlight = () => {
+    if (!selectedItem || !selectedButton) {
+      highlight.hidden = true;
+      return;
+    }
+
+    const gutter = 3;
+    highlight.hidden = false;
+    highlight.style.top = `${selectedItem.offsetTop}px`;
+    highlight.style.height = `${selectedButton.offsetHeight}px`;
+    highlight.style.width = `${Math.max(selectedButton.offsetWidth - gutter * 2, 0)}px`;
+    highlight.style.left = `${gutter}px`;
+    selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
 
   const render = () => {
@@ -300,7 +329,6 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
       actionButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        renderMenu();
         openMenu(bookmark, actionButton);
       });
 
@@ -315,7 +343,11 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
       }
     });
 
-    requestAnimationFrame(updateHighlight);
+    requestAnimationFrame(() => {
+      if (!destroyed) {
+        updateHighlight();
+      }
+    });
   };
 
   const refreshFiltered = (resetActiveIndex: boolean) => {
@@ -406,6 +438,7 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
 
   const handleDocumentPointerDown = (event: PointerEvent) => {
     const target = event.target;
+
     if (!(target instanceof Node)) {
       return;
     }
@@ -423,36 +456,52 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
     positionMenu();
   };
 
+  const fetchBookmarks = async () => {
+    const nodes = await getBookmarkTree();
+
+    if (destroyed) {
+      return;
+    }
+
+    const nextBookmarks: BookmarkItem[] = [];
+    nodes.forEach((rootNode) => {
+      collectBookmarks(rootNode, nextBookmarks);
+    });
+
+    applyBookmarks(nextBookmarks);
+  };
+
+  const handleBookmarkMutation = () => {
+    void fetchBookmarks();
+  };
+
   input.addEventListener("input", () => {
     handleSearch(input.value);
   });
   input.addEventListener("keydown", handleInputKeyDown);
   document.addEventListener("pointerdown", handleDocumentPointerDown, true);
   window.addEventListener("resize", handleWindowResize);
+  chrome.bookmarks.onCreated.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onRemoved.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onChanged.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onMoved.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onChildrenReordered.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onImportEnded.addListener(handleBookmarkMutation);
+
   input.focus();
-
-  const unsubscribe = subscribeToBookmarkCache((cache) => {
-    if (!destroyed) {
-      applyBookmarks(cache.bookmarks);
-    }
-  });
-
-  void getFreshBookmarkCache().then((cache) => {
-    if (!destroyed) {
-      applyBookmarks(cache.bookmarks);
-    }
-  });
+  void fetchBookmarks();
 
   return {
     destroy() {
       destroyed = true;
-      unsubscribe();
-      document.removeEventListener(
-        "pointerdown",
-        handleDocumentPointerDown,
-        true,
-      );
+      document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
       window.removeEventListener("resize", handleWindowResize);
+      chrome.bookmarks.onCreated.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onRemoved.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onChanged.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onMoved.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onChildrenReordered.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onImportEnded.removeListener(handleBookmarkMutation);
       input.removeEventListener("keydown", handleInputKeyDown);
       root.remove();
     },

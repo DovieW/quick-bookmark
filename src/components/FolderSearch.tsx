@@ -1,13 +1,14 @@
 import Fuse from "fuse.js";
-import {
-  getFreshBookmarkCache,
-  subscribeToBookmarkCache,
-  type BookmarkFolder,
-} from "../bookmarkCache";
 import { createIcon } from "../popup/icons";
 
 interface ViewController {
   destroy(): void;
+}
+
+interface BookmarkFolder {
+  id: string;
+  title: string;
+  path: string;
 }
 
 function createEmptyState(label: string) {
@@ -15,6 +16,44 @@ function createEmptyState(label: string) {
   emptyState.className = "empty-state";
   emptyState.textContent = label;
   return emptyState;
+}
+
+function traverseBookmarks(
+  node: chrome.bookmarks.BookmarkTreeNode,
+  currentPath: string,
+  folderList: BookmarkFolder[],
+) {
+  if (!node) {
+    return;
+  }
+
+  if (node.children) {
+    if (node.title && node.title.trim() !== "") {
+      const newPath = currentPath ? `${currentPath}/${node.title}` : node.title;
+
+      folderList.push({
+        id: node.id,
+        title: node.title,
+        path: newPath,
+      });
+
+      node.children.forEach((child) => {
+        traverseBookmarks(child, newPath, folderList);
+      });
+    } else {
+      node.children.forEach((child) => {
+        traverseBookmarks(child, currentPath, folderList);
+      });
+    }
+  }
+}
+
+function getBookmarkTree(): Promise<chrome.bookmarks.BookmarkTreeNode[]> {
+  return new Promise((resolve) => {
+    chrome.bookmarks.getTree((nodes) => {
+      resolve(nodes);
+    });
+  });
 }
 
 export function mountFolderSearch(container: HTMLElement): ViewController {
@@ -52,6 +91,27 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
   scroller.append(list);
   root.append(input, scroller);
   container.replaceChildren(root);
+
+  const handleSelectFolder = async (folderId: string) => {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = tabs[0];
+
+    if (!currentTab) {
+      return;
+    }
+
+    await chrome.bookmarks.create({
+      parentId: folderId,
+      title: currentTab.title ?? "Untitled",
+      url: currentTab.url,
+    });
+    window.close();
+  };
+
+  const handleOpenBookmarkManagerToFolder = async (folderId: string) => {
+    await chrome.tabs.create({ url: `chrome://bookmarks/?id=${folderId}` });
+    window.close();
+  };
 
   const updateHighlight = () => {
     if (!selectedItem || !selectedButton) {
@@ -92,6 +152,9 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
       const button = document.createElement("button");
       button.type = "button";
       button.className = `result-button${isSelected ? " is-selected" : ""}`;
+      button.addEventListener("click", () => {
+        void handleSelectFolder(folder.id);
+      });
 
       const icon = document.createElement("span");
       icon.className = "row-icon";
@@ -127,10 +190,6 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
 
       actionSlot.append(actionButton);
       button.append(icon, copy, actionSlot);
-      button.addEventListener("click", () => {
-        void handleSelectFolder(folder.id);
-      });
-
       listItem.append(button);
       list.append(listItem);
 
@@ -140,7 +199,11 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
       }
     });
 
-    requestAnimationFrame(updateHighlight);
+    requestAnimationFrame(() => {
+      if (!destroyed) {
+        updateHighlight();
+      }
+    });
   };
 
   const refreshFiltered = (resetActiveIndex: boolean) => {
@@ -180,27 +243,6 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
     refreshFiltered(true);
   };
 
-  const handleSelectFolder = async (folderId: string) => {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const currentTab = tabs[0];
-
-    if (!currentTab) {
-      return;
-    }
-
-    await chrome.bookmarks.create({
-      parentId: folderId,
-      title: currentTab.title ?? "Untitled",
-      url: currentTab.url,
-    });
-    window.close();
-  };
-
-  const handleOpenBookmarkManagerToFolder = async (folderId: string) => {
-    await chrome.tabs.create({ url: `chrome://bookmarks/?id=${folderId}` });
-    window.close();
-  };
-
   const handleInputKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Enter") {
       if (filtered[activeIndex]) {
@@ -237,28 +279,48 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
     }
   };
 
+  const fetchFolders = async () => {
+    const bookmarkTreeNodes = await getBookmarkTree();
+
+    if (destroyed) {
+      return;
+    }
+
+    const nextFolders: BookmarkFolder[] = [];
+    bookmarkTreeNodes.forEach((rootNode) => {
+      traverseBookmarks(rootNode, "", nextFolders);
+    });
+
+    applyFolders(nextFolders);
+  };
+
+  const handleBookmarkMutation = () => {
+    void fetchFolders();
+  };
+
   input.addEventListener("input", () => {
     handleSearch(input.value);
   });
   input.addEventListener("keydown", handleInputKeyDown);
+  chrome.bookmarks.onCreated.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onRemoved.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onChanged.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onMoved.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onChildrenReordered.addListener(handleBookmarkMutation);
+  chrome.bookmarks.onImportEnded.addListener(handleBookmarkMutation);
+
   input.focus();
-
-  const unsubscribe = subscribeToBookmarkCache((cache) => {
-    if (!destroyed) {
-      applyFolders(cache.folders);
-    }
-  });
-
-  void getFreshBookmarkCache().then((cache) => {
-    if (!destroyed) {
-      applyFolders(cache.folders);
-    }
-  });
+  void fetchFolders();
 
   return {
     destroy() {
       destroyed = true;
-      unsubscribe();
+      chrome.bookmarks.onCreated.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onRemoved.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onChanged.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onMoved.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onChildrenReordered.removeListener(handleBookmarkMutation);
+      chrome.bookmarks.onImportEnded.removeListener(handleBookmarkMutation);
       input.removeEventListener("keydown", handleInputKeyDown);
       root.remove();
     },

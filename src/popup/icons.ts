@@ -1,5 +1,6 @@
-type IconName =
+export type IconName =
   | "bookmark-add"
+  | "playlist-add"
   | "search"
   | "folder"
   | "folder-open"
@@ -15,6 +16,13 @@ const iconMarkup: Record<IconName, string> = {
     <path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3-5 3V4.75Z" />
     <path d="M12 7.5v5" />
     <path d="M9.5 10h5" />
+  `,
+  "playlist-add": `
+    <path d="M4 7h10" />
+    <path d="M4 12h10" />
+    <path d="M4 17h6" />
+    <path d="M18 9v6" />
+    <path d="M15 12h6" />
   `,
   search: `
     <circle cx="11" cy="11" r="6" />

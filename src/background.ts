@@ -1,142 +1,82 @@
 import {
-  isBookmarkCacheMessage,
-  readBookmarkCache,
-  rebuildBookmarkCache,
-  type BookmarkCache,
-} from "./bookmarkCache";
-import { primeQuickMode } from "./quickMode";
-
-let isBookmarkImportInProgress = false;
-let shouldRefreshBookmarksAfterImport = false;
-let isBookmarkCacheDirty = true;
-let bookmarkCacheRefreshPromise: Promise<BookmarkCache> | null = null;
-
-function markBookmarkCacheDirty() {
-  isBookmarkCacheDirty = true;
-}
-
-async function refreshBookmarkCache(): Promise<BookmarkCache> {
-  if (bookmarkCacheRefreshPromise) {
-    return bookmarkCacheRefreshPromise;
-  }
-
-  bookmarkCacheRefreshPromise = rebuildBookmarkCache()
-    .then((cache) => {
-      isBookmarkCacheDirty = false;
-      shouldRefreshBookmarksAfterImport = false;
-      return cache;
-    })
-    .catch((error) => {
-      console.warn("Failed to refresh bookmark cache.", error);
-      throw error;
-    })
-    .finally(() => {
-      bookmarkCacheRefreshPromise = null;
-    });
-
-  return bookmarkCacheRefreshPromise;
-}
-
-async function getLatestBookmarkCache(): Promise<BookmarkCache> {
-  if (bookmarkCacheRefreshPromise) {
-    return bookmarkCacheRefreshPromise;
-  }
-
-  const existingCache = await readBookmarkCache();
-
-  if (isBookmarkImportInProgress) {
-    if (existingCache) {
-      return existingCache;
-    }
-
-    return refreshBookmarkCache();
-  }
-
-  if (isBookmarkCacheDirty || !existingCache) {
-    return refreshBookmarkCache();
-  }
-
-  return existingCache;
-}
-
-function queueBookmarkCacheRefresh() {
-  markBookmarkCacheDirty();
-
-  if (isBookmarkImportInProgress) {
-    shouldRefreshBookmarksAfterImport = true;
-    return;
-  }
-
-  void refreshBookmarkCache();
-}
+  clearActionStatusBadge,
+  isClearActionStatusMessage,
+  isSetActionStatusMessage,
+  setActionStatusBadge,
+} from "./actionStatus";
+import {
+  createQuickPopupContext,
+  primeQuickMode,
+  primeQuickPopupContext,
+  type QuickMode,
+} from "./quickMode";
+import { parseYouTubeVideoContext } from "./youtube/videoContext";
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log("Quick Bookmark Extension installed!");
-  void refreshBookmarkCache();
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  void refreshBookmarkCache();
-});
+async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tabs[0];
+}
 
-chrome.bookmarks.onCreated.addListener(() => {
-  queueBookmarkCacheRefresh();
-});
+async function primeCommandMode(commandMode: QuickMode): Promise<void> {
+  const activeTab = await getActiveTab();
+  const youtubeVideo = parseYouTubeVideoContext(activeTab?.url, {
+    title: activeTab?.title,
+    tabId: activeTab?.id,
+  });
 
-chrome.bookmarks.onRemoved.addListener(() => {
-  queueBookmarkCacheRefresh();
-});
-
-chrome.bookmarks.onChanged.addListener(() => {
-  queueBookmarkCacheRefresh();
-});
-
-chrome.bookmarks.onMoved.addListener(() => {
-  queueBookmarkCacheRefresh();
-});
-
-chrome.bookmarks.onChildrenReordered.addListener(() => {
-  queueBookmarkCacheRefresh();
-});
-
-chrome.bookmarks.onImportBegan.addListener(() => {
-  isBookmarkImportInProgress = true;
-});
-
-chrome.bookmarks.onImportEnded.addListener(() => {
-  isBookmarkImportInProgress = false;
-
-  if (shouldRefreshBookmarksAfterImport) {
-    shouldRefreshBookmarksAfterImport = false;
+  if (activeTab?.id !== undefined) {
+    await clearActionStatusBadge(activeTab.id);
   }
 
-  queueBookmarkCacheRefresh();
-});
-
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!isBookmarkCacheMessage(message)) {
-    return undefined;
+  if (youtubeVideo) {
+    const popupMode = commandMode === "add" ? "youtube" : commandMode;
+    await primeQuickPopupContext(
+      createQuickPopupContext(popupMode, youtubeVideo),
+    );
+    return;
   }
 
-  void getLatestBookmarkCache()
-    .then((cache) => {
-      sendResponse(cache);
-    })
-    .catch((error) => {
-      sendResponse({
-        error: error instanceof Error ? error.message : "Unknown cache error",
-      });
-    });
-
-  return true;
-});
+  await primeQuickMode(commandMode);
+}
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "open") {
-    await primeQuickMode("open");
-    chrome.action.openPopup();
+    await primeCommandMode("open");
+    await chrome.action.openPopup();
   } else if (command === "add") {
-    await primeQuickMode("add");
-    chrome.action.openPopup();
+    await primeCommandMode("add");
+    await chrome.action.openPopup();
   }
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isSetActionStatusMessage(message)) {
+    void setActionStatusBadge(message.status, message.tabId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (isClearActionStatusMessage(message)) {
+    void clearActionStatusBadge(message.tabId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  return false;
 });

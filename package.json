@@ -1,6 +1,6 @@
 {
   "name": "quick-bookmark",
-  "version": "3.0.2",
+  "version": "3.0.1",
   "description": "Quickly bookmark the current page into a chosen folder via fuzzy search",
   "author": "Your Name",
   "scripts": {

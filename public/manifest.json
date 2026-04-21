@@ -1,7 +1,7 @@
 {
   "name": "Quick Bookmark",
   "description": "Quickly bookmark or open existing bookmarks",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "manifest_version": 3,
   "permissions": ["bookmarks", "tabs", "tabGroups", "storage", "identity"],
   "host_permissions": [

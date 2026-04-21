@@ -9,8 +9,9 @@ function buildManifestPlugin(env: Record<string, string>): Plugin {
   return {
     name: "quick-bookmark-manifest-config",
     apply: "build",
-    closeBundle() {
+    writeBundle() {
       const manifestPath = resolve(__dirname, "dist/manifest.json");
+      const popupHtmlPath = resolve(__dirname, "dist/popup.html");
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
         background?: {
           service_worker?: string;
@@ -43,6 +44,13 @@ function buildManifestPlugin(env: Record<string, string>): Plugin {
       }
 
       writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+      const popupHtml = readFileSync(popupHtmlPath, "utf8").replace(
+        /(src|href)="\/(?!\/)([^"]+)"/g,
+        '$1="./$2"',
+      );
+
+      writeFileSync(popupHtmlPath, popupHtml);
     },
   };
 }
@@ -51,6 +59,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
 
   return {
+    base: "./",
     plugins: [buildManifestPlugin(env)],
     build: {
       rollupOptions: {

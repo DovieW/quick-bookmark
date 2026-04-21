@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+quick-bookmark-*.zip
 
 # Logs
 npm-debug.log

@@ -38,6 +38,15 @@ To enable the YouTube playlist feature for real playlists on your account during
 
 If YouTube OAuth is not configured yet, the playlist picker will show a setup prompt instead of failing mysteriously.
 
+## Building a distributable zip
+
+To create a release zip that Chrome can install correctly:
+
+1. Run `npm run build:release`
+2. Upload the generated `quick-bookmark-<version>.zip`
+
+The zip step is important on Windows because a naive archive can store `assets/...` paths incorrectly and break the popup stylesheet.
+
 ## Do we need an options page?
 
 Probably not for the first version.

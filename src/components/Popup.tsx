@@ -7,6 +7,7 @@ import {
   readQuickPopupContext,
   writeQuickPopupContext,
   type QuickPopupContext,
+  type QuickPopupMode,
 } from "../quickMode";
 import { createIcon, type IconName } from "../popup/icons";
 
@@ -17,7 +18,6 @@ interface ViewController {
 interface ModeMeta {
   title: string;
   subtitle: string;
-  shortcut: string;
   icon: IconName;
   isYouTube: boolean;
 }
@@ -27,7 +27,6 @@ function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
     return {
       title: "Quick Open",
       subtitle: "Search and open bookmarks",
-      shortcut: "Alt+F",
       icon: "search",
       isYouTube: false,
     };
@@ -37,7 +36,6 @@ function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
     return {
       title: "Quick Playlist",
       subtitle: "Add or remove this video from a YouTube playlist",
-      shortcut: "Ctrl+D",
       icon: "playlist-add",
       isYouTube: true,
     };
@@ -46,13 +44,13 @@ function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
   return {
     title: "Quick Bookmark",
     subtitle: popupContext === null ? "Loading…" : "Save to folder",
-    shortcut: "Ctrl+D",
     icon: "bookmark-add",
     isYouTube: false,
   };
 }
 
 export function mountPopup(root: HTMLElement): ViewController {
+  let destroyed = false;
   let popupContext: QuickPopupContext | null = null;
   let currentView: ViewController | null = null;
 
@@ -74,11 +72,41 @@ export function mountPopup(root: HTMLElement): ViewController {
   const subtitle = document.createElement("p");
   subtitle.className = "header-subtitle";
 
-  const shortcut = document.createElement("span");
-  shortcut.className = "shortcut-badge";
+  const settingsButton = document.createElement("button");
+  settingsButton.type = "button";
+  settingsButton.className = "settings-button";
+  settingsButton.title = "Settings";
+  settingsButton.setAttribute("aria-label", "Settings");
+  settingsButton.append(createIcon("settings", 20));
+  settingsButton.addEventListener("click", () => {
+    void chrome.runtime.openOptionsPage().then(() => window.close()).catch(() => {
+      subtitle.textContent = "Could not open settings. Please try again.";
+      subtitle.classList.add("is-error");
+    });
+  });
+
+  const modeSwitcher = document.createElement("nav");
+  modeSwitcher.className = "mode-switcher";
+  modeSwitcher.setAttribute("aria-label", "Picker mode");
+  const modeButtons = ([
+    ["add", "Save", "Save bookmark (Ctrl+D)"],
+    ["open", "Open", "Open bookmark (Alt+F)"],
+    ["youtube", "Playlists", "Add or remove this video from a playlist"],
+  ] as const).map(([mode, label, tooltip]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `mode-button${mode === "youtube" ? " mode-button--youtube" : ""}`;
+    button.textContent = label;
+    button.title = tooltip;
+    button.disabled = true;
+    button.hidden = mode === "youtube";
+    button.addEventListener("click", () => switchMode(mode));
+    modeSwitcher.append(button);
+    return { mode, button };
+  });
 
   headerText.append(title, subtitle);
-  header.append(iconWrapper, headerText, shortcut);
+  header.append(iconWrapper, headerText, modeSwitcher, settingsButton);
 
   const content = document.createElement("main");
   content.className = "popup-content";
@@ -97,8 +125,13 @@ export function mountPopup(root: HTMLElement): ViewController {
     iconWrapper.replaceChildren(createIcon(meta.icon, 20));
     title.textContent = meta.title;
     subtitle.textContent = meta.subtitle;
-    shortcut.textContent = meta.shortcut;
+    subtitle.classList.remove("is-error");
     shell.classList.toggle("popup-shell--youtube", meta.isYouTube);
+    modeButtons.forEach(({ mode, button }) => {
+      button.disabled = !popupContext;
+      button.hidden = mode === "youtube" && !popupContext?.canToggleYoutubeAdd;
+      button.setAttribute("aria-pressed", String(mode === popupContext?.mode));
+    });
 
     currentView?.destroy();
     currentView = null;
@@ -126,8 +159,22 @@ export function mountPopup(root: HTMLElement): ViewController {
   };
 
   const setPopupContext = (nextPopupContext: QuickPopupContext) => {
+    if (destroyed) return;
+    if (popupContext?.mode === nextPopupContext.mode &&
+        popupContext.youtubeVideo?.videoId === nextPopupContext.youtubeVideo?.videoId) return;
     popupContext = nextPopupContext;
     render();
+  };
+
+  const switchMode = (mode: QuickPopupMode) => {
+    if (!popupContext) return;
+    if (mode === popupContext.mode) {
+      content.querySelector<HTMLInputElement>(".search-input")?.focus();
+      return;
+    }
+    const next = createQuickPopupContext(mode, popupContext.youtubeVideo);
+    void writeQuickPopupContext(next).catch(error => console.warn("Could not remember popup mode", error));
+    setPopupContext(next);
   };
 
   const handleKey = (event: KeyboardEvent) => {
@@ -151,7 +198,7 @@ export function mountPopup(root: HTMLElement): ViewController {
           )
         : createQuickPopupContext("add");
 
-      void writeQuickPopupContext(nextPopupContext);
+      void writeQuickPopupContext(nextPopupContext).catch(error => console.warn("Could not remember popup mode", error));
       setPopupContext(nextPopupContext);
       return;
     }
@@ -169,7 +216,7 @@ export function mountPopup(root: HTMLElement): ViewController {
         "open",
         popupContext.canToggleYoutubeAdd ? popupContext.youtubeVideo : null,
       );
-      void writeQuickPopupContext(nextPopupContext);
+      void writeQuickPopupContext(nextPopupContext).catch(error => console.warn("Could not remember popup mode", error));
       setPopupContext(nextPopupContext);
     }
   };
@@ -178,12 +225,19 @@ export function mountPopup(root: HTMLElement): ViewController {
 
   void readQuickPopupContext().then((nextPopupContext) => {
     setPopupContext(nextPopupContext);
+  }).catch(() => {
+    if (!destroyed) {
+      subtitle.textContent = "Could not load the popup. Please reopen it to try again.";
+      subtitle.classList.add("is-error");
+      content.replaceChildren();
+    }
   });
 
   render();
 
   return {
     destroy() {
+      destroyed = true;
       window.removeEventListener("keydown", handleKey, true);
       currentView?.destroy();
       document.body.style.overflow = originalOverflow;

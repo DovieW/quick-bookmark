@@ -1,0 +1,16 @@
+Quick Bookmark 4.0.0 reviewer instructions
+
+Core bookmarking does not require a Google account or YouTube access.
+
+1. Create a few bookmarks and nested bookmark folders in a temporary Chrome profile.
+2. Open any normal web page and click Quick Bookmark. Use Save to search folders and save the current page. Empty folders should be available.
+3. Use Open to search bookmark titles. Enter opens the selected result; Ctrl+Enter opens an adjacent tab. Arrow keys or Ctrl+N/Ctrl+P move the selection and keep it visible.
+4. Click the gear. “Include URLs and domains” starts off. Enable it to make a bookmark searchable by its domain or URL path. Disable it to return to title-only search. Changes save automatically.
+5. Save multiple pages into the same folder. It should appear ahead of unused folders when the folder search is empty.
+6. If testing the optional YouTube integration, open a supported youtube.com/watch or /shorts video page, select Playlists, and click Connect YouTube using a Google account with playlists. The user grants YouTube access through Chrome's identity API.
+7. Playlist membership is checked before an action is enabled. An existing video shows Already added / Remove; an absent video shows Add. Failed checks offer Retry. Only selecting an enabled Add or Remove changes a playlist; Retry reads state.
+8. Save/Open remain available while playlist checks run, and ordinary bookmark functionality remains available without YouTube authorization.
+
+No reviewer credentials are included or required for bookmark features. Use your own test Google account if testing YouTube. This release's automated tests exercise YouTube behavior using mocked responses; they do not establish live OAuth success or modify a real user's playlists.
+
+Screenshots use fictional bookmark data; the YouTube screenshot uses mocked playlist responses.

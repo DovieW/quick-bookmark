@@ -1,509 +1,148 @@
-import Fuse from "fuse.js";
+import { createBookmarkFilter, readBookmarkData, subscribeToBookmarks, type BookmarkItem } from "../bookmarks";
+import { readSettings, subscribeToSettings } from "../settings";
 import { createIcon } from "../popup/icons";
+import { createPicker, type ViewController } from "./Picker";
 
-interface ViewController {
-  destroy(): void;
-}
-
-interface BookmarkItem {
-  id: string;
-  title: string;
-  url: string;
-  parentId?: string;
-}
-
-function createEmptyState(label: string) {
-  const emptyState = document.createElement("div");
-  emptyState.className = "empty-state";
-  emptyState.textContent = label;
-  return emptyState;
-}
-
-function collectBookmarks(
-  node: chrome.bookmarks.BookmarkTreeNode,
-  result: BookmarkItem[],
-) {
-  if (node.url) {
-    result.push({
-      id: node.id,
-      title: node.title || "(Untitled)",
-      url: node.url,
-      parentId: node.parentId,
-    });
-  }
-
-  if (node.children) {
-    node.children.forEach((child) => {
-      collectBookmarks(child, result);
-    });
-  }
-}
-
-function getBookmarkTree(): Promise<chrome.bookmarks.BookmarkTreeNode[]> {
-  return new Promise((resolve) => {
-    chrome.bookmarks.getTree((nodes) => {
-      resolve(nodes);
-    });
-  });
-}
-
-function getDomainFromUrl(url: string) {
-  try {
-    return new URL(url).hostname.replace("www.", "");
-  } catch {
-    return url;
-  }
-}
-
-function extractHostname(url: string) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
+async function copyToClipboard(text: string): Promise<void> {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.append(textArea);
+    textArea.select();
     try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-    } catch {
-      console.warn("Clipboard copy failed");
-    }
+      if (!document.execCommand("copy")) throw new Error("Could not copy to the clipboard.");
+    } finally { textArea.remove(); }
   }
 }
 
 export function mountBookmarkOpen(container: HTMLElement): ViewController {
-  let destroyed = false;
-  let bookmarks: BookmarkItem[] = [];
-  let filtered: BookmarkItem[] = [];
-  let searchTerm = "";
-  let activeIndex = 0;
-  let fuse: Fuse<BookmarkItem> | null = null;
-  let selectedItem: HTMLLIElement | null = null;
-  let selectedButton: HTMLButtonElement | null = null;
-  let menuBookmark: BookmarkItem | null = null;
-  let menuAnchor: HTMLElement | null = null;
-
-  const root = document.createElement("section");
-  root.className = "popup-view";
-
-  const input = document.createElement("input");
-  input.className = "search-input";
-  input.type = "text";
-  input.placeholder = "Search bookmarks...";
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  input.setAttribute("aria-label", "Search bookmarks");
-
-  const scroller = document.createElement("div");
-  scroller.className = "results-scroller";
-
-  const list = document.createElement("ul");
-  list.className = "result-list";
-
-  const highlight = document.createElement("div");
-  highlight.className = "selection-highlight";
-  highlight.hidden = true;
-
   const menu = document.createElement("div");
   menu.className = "popup-menu";
   menu.hidden = true;
-
-  list.append(highlight);
-  scroller.append(list);
-  root.append(input, scroller, menu);
-  container.replaceChildren(root);
-
+  let menuAnchor: HTMLElement | null = null;
+  const closeMenu = () => { menu.hidden = true; menuAnchor = null; };
   const positionMenu = () => {
-    if (!menuAnchor || menu.hidden) {
-      return;
-    }
-
-    const anchorRect = menuAnchor.getBoundingClientRect();
-    const menuWidth = menu.offsetWidth || 188;
-    const menuHeight = menu.offsetHeight || 0;
-    const left = Math.max(
-      8,
-      Math.min(anchorRect.right - menuWidth, window.innerWidth - menuWidth - 8),
-    );
-    const preferredTop = anchorRect.bottom + 6;
-    const top =
-      preferredTop + menuHeight > window.innerHeight - 8
-        ? Math.max(8, anchorRect.top - menuHeight - 6)
-        : preferredTop;
-
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
+    if (!menuAnchor?.isConnected) { closeMenu(); return; }
+    const rect = menuAnchor.getBoundingClientRect();
+    const width = menu.offsetWidth;
+    const height = menu.offsetHeight;
+    menu.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`;
+    menu.style.top = `${rect.bottom + height + 6 > window.innerHeight - 8
+      ? Math.max(8, rect.top - height - 6) : rect.bottom + 6}px`;
   };
-
-  const closeMenu = () => {
-    menu.hidden = true;
-    menuBookmark = null;
-    menuAnchor = null;
-  };
-
-  const handleOpenBookmark = async (
-    bookmark: BookmarkItem,
-    forceNewTab = false,
-  ) => {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const currentTab = tabs[0];
-
-    if (!currentTab?.id) {
-      return;
-    }
-
-    if (forceNewTab) {
-      const newTab = await chrome.tabs.create({
-        url: bookmark.url,
-        index: currentTab.index + 1,
-      });
-
-      if (currentTab.groupId && currentTab.groupId !== -1 && newTab.id) {
-        try {
-          await chrome.tabs.group({
-            tabIds: [newTab.id],
-            groupId: currentTab.groupId,
-          });
-        } catch (error) {
-          console.warn("Failed to add tab to group:", error);
-        }
-      }
-    } else {
-      await chrome.tabs.update(currentTab.id, { url: bookmark.url });
-    }
-
-    window.close();
-  };
-
-  const handleOpenBookmarkAtEnd = async (bookmark: BookmarkItem) => {
-    await chrome.tabs.create({ url: bookmark.url });
-    window.close();
-  };
-
-  const handleOpenBookmarkManagerToFolder = async (bookmark: BookmarkItem) => {
-    if (!bookmark.parentId) {
-      return;
-    }
-
-    await chrome.tabs.create({
-      url: `chrome://bookmarks/?id=${bookmark.parentId}`,
-    });
-    window.close();
-  };
-
-  const renderMenu = () => {
-    menu.replaceChildren();
-
-    if (!menuBookmark) {
-      return;
-    }
-
-    const activeBookmark = menuBookmark;
-    const actions = [
-      {
-        label: "Open manager to folder",
-        icon: "folder-open" as const,
-        run: () => handleOpenBookmarkManagerToFolder(activeBookmark),
-      },
-      {
-        label: "Copy URL",
-        icon: "copy" as const,
-        run: () => copyToClipboard(activeBookmark.url),
-      },
-      {
-        label: "Copy domain",
-        icon: "language" as const,
-        run: () => copyToClipboard(extractHostname(activeBookmark.url)),
-      },
-    ];
-
-    actions.forEach((action) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "menu-item";
-
-      const icon = document.createElement("span");
-      icon.className = "menu-item-icon";
-      icon.append(createIcon(action.icon, 16));
-
-      const label = document.createElement("span");
-      label.textContent = action.label;
-
-      button.append(icon, label);
-      button.addEventListener("click", () => {
-        void action.run();
-        closeMenu();
-      });
-      menu.append(button);
-    });
-  };
-
-  const openMenu = (bookmark: BookmarkItem, anchor: HTMLElement) => {
-    menuBookmark = bookmark;
-    menuAnchor = anchor;
-    renderMenu();
-    menu.hidden = false;
-    positionMenu();
-  };
-
-  const updateHighlight = () => {
-    if (!selectedItem || !selectedButton) {
-      highlight.hidden = true;
-      return;
-    }
-
-    const gutter = 3;
-    highlight.hidden = false;
-    highlight.style.top = `${selectedItem.offsetTop}px`;
-    highlight.style.height = `${selectedButton.offsetHeight}px`;
-    highlight.style.width = `${Math.max(selectedButton.offsetWidth - gutter * 2, 0)}px`;
-    highlight.style.left = `${gutter}px`;
-    selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  };
-
-  const render = () => {
-    input.value = searchTerm;
-    selectedItem = null;
-    selectedButton = null;
-    list.replaceChildren(highlight);
-
-    const displayed = filtered.slice(0, 20);
-
-    if (displayed.length === 0) {
-      list.append(createEmptyState("No bookmarks found."));
-      updateHighlight();
-      return;
-    }
-
-    displayed.forEach((bookmark, index) => {
-      const isSelected = index === activeIndex;
-
-      const listItem = document.createElement("li");
-      listItem.className = "result-item";
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `result-button${isSelected ? " is-selected" : ""}`;
-      button.addEventListener("click", (event) => {
-        void handleOpenBookmark(bookmark, event.ctrlKey);
-      });
-
-      const icon = document.createElement("span");
-      icon.className = "row-icon";
-      icon.append(createIcon("bookmark", 16));
-
-      const copy = document.createElement("span");
-      copy.className = "row-text";
-
-      const title = document.createElement("span");
-      title.className = "row-title";
-      title.textContent = bookmark.title;
-
-      const subtitle = document.createElement("span");
-      subtitle.className = "row-subtitle";
-      subtitle.textContent = getDomainFromUrl(bookmark.url);
-
-      copy.append(title, subtitle);
-
-      const actionSlot = document.createElement("span");
-      actionSlot.className = "row-action-slot";
-
-      const actionButton = document.createElement("button");
-      actionButton.type = "button";
-      actionButton.className = "row-action";
-      actionButton.title = "More actions";
-      actionButton.setAttribute("aria-label", "More actions");
-      actionButton.append(createIcon("more-vertical", 18));
-      actionButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        openMenu(bookmark, actionButton);
-      });
-
-      actionSlot.append(actionButton);
-      button.append(icon, copy, actionSlot);
-      listItem.append(button);
-      list.append(listItem);
-
-      if (isSelected) {
-        selectedItem = listItem;
-        selectedButton = button;
-      }
-    });
-
-    requestAnimationFrame(() => {
-      if (!destroyed) {
-        updateHighlight();
-      }
-    });
-  };
-
-  const refreshFiltered = (resetActiveIndex: boolean) => {
-    if (!searchTerm) {
-      filtered = bookmarks;
-    } else {
-      if (!fuse) {
-        fuse = new Fuse(bookmarks, {
-          keys: ["title"],
-          threshold: 0.3,
-        });
-      }
-
-      filtered = fuse.search(searchTerm).map((result) => result.item);
-    }
-
-    if (resetActiveIndex) {
-      activeIndex = 0;
-    } else if (filtered.length === 0) {
-      activeIndex = 0;
-    } else {
-      const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
-      activeIndex = Math.min(activeIndex, maxDisplayedIndex);
-    }
-
-    render();
-  };
-
-  const applyBookmarks = (nextBookmarks: BookmarkItem[]) => {
-    bookmarks = nextBookmarks;
-    fuse = null;
-    refreshFiltered(false);
-  };
-
-  const handleSearch = (term: string) => {
-    searchTerm = term;
-    refreshFiltered(true);
-  };
-
-  const handleInputKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Escape" && !menu.hidden) {
-      event.preventDefault();
-      closeMenu();
-      return;
-    }
-
-    if (event.key === "Enter") {
-      const activeBookmark = filtered[activeIndex];
-
-      if (activeBookmark) {
-        event.preventDefault();
-
-        if (event.ctrlKey && event.shiftKey) {
-          void handleOpenBookmarkAtEnd(activeBookmark);
+  const picker = createPicker<BookmarkItem>(container, {
+    placeholder: "Search bookmarks...", emptyLabel: "No bookmarks found.",
+    itemLabel: "bookmarks", selectLabel: "Open", newTabHint: true,
+    filter: createBookmarkFilter(false),
+    describe: bookmark => ({ title: bookmark.title, subtitle: bookmark.domain, icon: "bookmark" }),
+    async onSelect(bookmark, event) {
+      if (event.ctrlKey && event.shiftKey) {
+        await chrome.tabs.create({ url: bookmark.url });
+      } else {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id === undefined) throw new Error("No active tab is available.");
+        if (event.ctrlKey) {
+          const created = await chrome.tabs.create({ url: bookmark.url, index: tab.index + 1 });
+          if (tab.groupId !== undefined && tab.groupId !== -1 && created.id !== undefined) {
+            await chrome.tabs.group({ tabIds: [created.id], groupId: tab.groupId })
+              .catch(error => console.warn("Could not add tab to group", error));
+          }
         } else {
-          void handleOpenBookmark(activeBookmark, event.ctrlKey);
+          await chrome.tabs.update(tab.id, { url: bookmark.url });
         }
       }
-      return;
-    }
-
-    if (
-      (event.ctrlKey && event.key.toLowerCase() === "n") ||
-      event.key === "ArrowDown"
-    ) {
-      event.preventDefault();
-
-      if (filtered.length > 0) {
-        const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
-        activeIndex = Math.min(activeIndex + 1, maxDisplayedIndex);
-        render();
-      }
-      return;
-    }
-
-    if (
-      (event.ctrlKey && event.key.toLowerCase() === "p") ||
-      event.key === "ArrowUp"
-    ) {
-      event.preventDefault();
-
-      if (filtered.length > 0) {
-        activeIndex = Math.max(activeIndex - 1, 0);
-        render();
-      }
-    }
-  };
-
-  const handleDocumentPointerDown = (event: PointerEvent) => {
-    const target = event.target;
-
-    if (!(target instanceof Node)) {
-      return;
-    }
-
-    if (
-      !menu.hidden &&
-      !menu.contains(target) &&
-      !menuAnchor?.contains(target)
-    ) {
+      window.close();
+    },
+    onEscape() {
+      if (menu.hidden) return false;
       closeMenu();
-    }
-  };
-
-  const handleWindowResize = () => {
-    positionMenu();
-  };
-
-  const fetchBookmarks = async () => {
-    const nodes = await getBookmarkTree();
-
-    if (destroyed) {
-      return;
-    }
-
-    const nextBookmarks: BookmarkItem[] = [];
-    nodes.forEach((rootNode) => {
-      collectBookmarks(rootNode, nextBookmarks);
-    });
-
-    applyBookmarks(nextBookmarks);
-  };
-
-  const handleBookmarkMutation = () => {
-    void fetchBookmarks();
-  };
-
-  input.addEventListener("input", () => {
-    handleSearch(input.value);
+      return true;
+    },
+    secondaryAction: {
+      label: "More actions", icon: "more-vertical",
+      run(bookmark, anchor) {
+        menu.replaceChildren();
+        const actions = [
+          { label: "Open manager to folder", icon: "folder-open" as const, run: async () => {
+            if (!bookmark.parentId) throw new Error("This bookmark has no parent folder.");
+            await chrome.tabs.create({ url: `chrome://bookmarks/?id=${bookmark.parentId}` });
+            window.close();
+          } },
+          { label: "Copy URL", icon: "copy" as const, run: () => copyToClipboard(bookmark.url) },
+          { label: "Copy domain", icon: "language" as const, run: () => {
+            let domain = bookmark.url;
+            try { domain = new URL(bookmark.url).hostname; } catch { /* Keep the original URL. */ }
+            return copyToClipboard(domain);
+          } },
+        ];
+        actions.forEach(action => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "menu-item";
+          button.append(createIcon(action.icon, 16), document.createTextNode(action.label));
+          button.addEventListener("click", () => { closeMenu(); void picker.run(action.run); });
+          menu.append(button);
+        });
+        menuAnchor = anchor;
+        menu.hidden = false;
+        positionMenu();
+      },
+    },
   });
-  input.addEventListener("keydown", handleInputKeyDown);
-  document.addEventListener("pointerdown", handleDocumentPointerDown, true);
-  window.addEventListener("resize", handleWindowResize);
-  chrome.bookmarks.onCreated.addListener(handleBookmarkMutation);
-  chrome.bookmarks.onRemoved.addListener(handleBookmarkMutation);
-  chrome.bookmarks.onChanged.addListener(handleBookmarkMutation);
-  chrome.bookmarks.onMoved.addListener(handleBookmarkMutation);
-  chrome.bookmarks.onChildrenReordered.addListener(handleBookmarkMutation);
-  chrome.bookmarks.onImportEnded.addListener(handleBookmarkMutation);
-
-  input.focus();
-  void fetchBookmarks();
-
+  picker.root.append(menu);
+  let request = 0;
+  const refresh = async (loadPreferences = false) => {
+    const currentRequest = ++request;
+    try {
+      const [data, settings] = await Promise.all([
+        readBookmarkData(), loadPreferences ? readSettings() : Promise.resolve(null),
+      ]);
+      if (!picker.destroyed && settings && settingsRevision === 0) applySettings(settings.searchUrlsAndDomains);
+      if (!picker.destroyed && currentRequest === request) {
+        closeMenu();
+        picker.setItems(data.bookmarks);
+        picker.setLoading(false);
+      }
+    } catch (error) {
+      if (!picker.destroyed && currentRequest === request) {
+        picker.setLoading(false);
+        picker.setError(error);
+      }
+    }
+  };
+  let settingsRevision = 0;
+  const applySettings = (include: boolean) => {
+    closeMenu();
+    picker.setFilter(createBookmarkFilter(include));
+    picker.input.placeholder = include ? "Search titles, URLs, or domains..." : "Search bookmarks...";
+  };
+  const unsubscribeSettings = subscribeToSettings(settings => {
+    settingsRevision++;
+    applySettings(settings.searchUrlsAndDomains);
+  });
+  const unsubscribeBookmarks = subscribeToBookmarks(() => { void refresh(); });
+  const handlePointer = (event: PointerEvent) => {
+    if (event.target instanceof Node && !menu.contains(event.target) && !menuAnchor?.contains(event.target)) closeMenu();
+  };
+  document.addEventListener("pointerdown", handlePointer, true);
+  window.addEventListener("resize", positionMenu);
+  picker.scroller.addEventListener("scroll", closeMenu);
+  picker.input.addEventListener("input", closeMenu);
+  picker.input.addEventListener("keydown", closeMenuOnNavigation);
+  function closeMenuOnNavigation(event: KeyboardEvent) {
+    if (event.key.startsWith("Arrow") || event.key === "Enter" ||
+        (event.ctrlKey && ["n", "p"].includes(event.key.toLowerCase()))) closeMenu();
+  }
+  void refresh(true);
   return {
     destroy() {
-      destroyed = true;
-      document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
-      window.removeEventListener("resize", handleWindowResize);
-      chrome.bookmarks.onCreated.removeListener(handleBookmarkMutation);
-      chrome.bookmarks.onRemoved.removeListener(handleBookmarkMutation);
-      chrome.bookmarks.onChanged.removeListener(handleBookmarkMutation);
-      chrome.bookmarks.onMoved.removeListener(handleBookmarkMutation);
-      chrome.bookmarks.onChildrenReordered.removeListener(handleBookmarkMutation);
-      chrome.bookmarks.onImportEnded.removeListener(handleBookmarkMutation);
-      input.removeEventListener("keydown", handleInputKeyDown);
-      root.remove();
+      unsubscribeSettings(); unsubscribeBookmarks();
+      document.removeEventListener("pointerdown", handlePointer, true);
+      window.removeEventListener("resize", positionMenu);
+      picker.destroy();
     },
   };
 }

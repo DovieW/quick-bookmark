@@ -1,0 +1,26 @@
+Quick Bookmark helps you save the current page to the right folder and find bookmarks without leaving your keyboard.
+
+SAVE AND OPEN
+• Press Ctrl+D to search your bookmark folders and save the current page.
+• Press Alt+F to find and open an existing bookmark.
+• Press Ctrl+Enter to open a result in an adjacent tab, or Ctrl+Shift+Enter to open it at the end of your tabs.
+• Use Save and Open in the popup header to switch views with the mouse.
+• Frequently used folders appear first, with recent use breaking ties.
+
+SEARCH YOUR WAY
+Bookmark search matches titles by default. Enable “Include URLs and domains” on the Settings page to also search website domains and full URLs, including paths. This option is off by default and saves locally in your browser profile.
+
+OPTIONAL YOUTUBE PLAYLISTS
+On supported YouTube video pages, Ctrl+D opens the playlist picker. Connect your Google account to see whether a video is already in a playlist and choose Add or Remove. Failed membership checks offer Retry without modifying a playlist. You can switch to Save to bookmark the video page normally.
+
+NEW IN 4.0.0
+A roomier interface with larger text, buttons, and icons; neutral charcoal colors; clear selection; aligned margins; and an inset scrollbar. Keyboard navigation reuses existing rows and updates selection immediately. Startup reads run in parallel, and YouTube actions are explicit and protected against repeated submissions.
+
+PRIVACY
+Bookmark search, preferences, folder usage, and playlist caches stay local to your browser. Optional YouTube access uses Google's identity and YouTube APIs. Quick Bookmark does not send bookmark or browsing data to a developer-owned server and includes no analytics or advertising.
+
+If shortcuts conflict with Chrome or another extension, configure them at chrome://extensions/shortcuts.
+
+Open source: https://github.com/DovieW/quick-bookmark
+Support: https://github.com/DovieW/quick-bookmark/issues
+Privacy policy: https://raw.githubusercontent.com/DovieW/quick-bookmark/master/PRIVACY.md

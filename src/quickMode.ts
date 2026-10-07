@@ -161,10 +161,10 @@ export async function readQuickMode(): Promise<QuickMode> {
 }
 
 export async function readQuickPopupContext(): Promise<QuickPopupContext> {
-  const activeTab = await getActiveTab();
-  const sessionPopupContext = await readQuickPopupContextFrom(
-    chrome.storage.session,
-  );
+  const [activeTab, sessionPopupContext] = await Promise.all([
+    getActiveTab(),
+    readQuickPopupContextFrom(chrome.storage.session),
+  ]);
 
   if (sessionPopupContext?.youtubeVideo) {
     const activeYouTubeVideo = parseYouTubeVideoContext(activeTab?.url, {

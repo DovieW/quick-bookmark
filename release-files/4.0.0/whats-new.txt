@@ -1,0 +1,12 @@
+Quick Bookmark 4.0.0
+
+• A roomier popup with larger text, buttons, and icons, neutral charcoal colors, and simpler selection styling.
+• Save, Open, and Playlists share one header, with keyboard hints and result counts below the results.
+• A new Settings page offers URL and domain matching, off by default.
+• Frequently used bookmark folders appear first; empty folders are included.
+• Immediate keyboard selection and parallel startup reads improve responsiveness.
+• YouTube playlist membership is visible, with explicit Add/Remove actions and safe Retry behavior.
+• Fresh membership checks preserve the chosen action and repeated Enter cannot submit twice.
+• Fixed build compatibility, cache expiry, and ZIP packaging.
+
+No new extension permissions are requested.

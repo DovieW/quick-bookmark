@@ -1,6 +1,6 @@
 # Quick Bookmark Privacy Policy
 
-_Last updated: 2026-04-19_
+_Last updated: 2026-10-06_
 
 Quick Bookmark is a Chrome extension that helps users bookmark pages, search existing bookmarks, and optionally manage YouTube playlist actions for the current video.
 
@@ -28,10 +28,12 @@ Quick Bookmark uses this data only to provide the extension's features:
 The extension stores operational data locally in Chrome storage, such as:
 
 - quick mode and popup state,
+- bookmark search preferences and folder usage counts and last-used times,
 - cached YouTube playlist data,
-- and last-used playlist preferences.
+- last-used playlist preferences,
+- and a cached YouTube access token when you connect your account.
 
-Google OAuth tokens used for YouTube access are handled through Chrome's identity APIs and Google services.
+Google authorization uses Chrome's identity APIs. A copy of the YouTube access token is stored locally so cached authorization can be invalidated when necessary. It is sent only to Google's YouTube APIs to perform the requested playlist operations.
 
 ## Data sharing
 

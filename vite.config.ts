@@ -65,6 +65,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           popup: resolve(__dirname, "popup.html"), // The original Quick Bookmark popup
+          options: resolve(__dirname, "options.html"),
           background: resolve(__dirname, "src/background.ts"),
         },
         output: {

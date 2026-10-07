@@ -1,12 +1,18 @@
 import { getYouTubeAccessToken, invalidateYouTubeAccessToken } from "./auth";
 import type {
-  TogglePlaylistVideoResult,
+  PlaylistVideoAction,
+  PlaylistVideoResult,
   YouTubePlaylist,
   YouTubePlaylistMembership,
 } from "./types";
 import type { YouTubeVideoContext } from "./videoContext";
 
 const YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3";
+
+export interface YouTubeRequestOptions {
+  interactive?: boolean;
+  signal?: AbortSignal;
+}
 
 interface YouTubeApiErrorPayload {
   error?: {
@@ -58,12 +64,13 @@ function createYouTubeApiError(message: string): Error {
 async function requestYouTubeApi<T>(
   path: string,
   init?: RequestInit,
-  options?: { interactive?: boolean },
+  options?: YouTubeRequestOptions,
   allowRetry = true,
 ): Promise<T> {
   const token = await getYouTubeAccessToken({ interactive: options?.interactive });
   const response = await fetch(`${YOUTUBE_API_BASE_URL}${path}`, {
     ...init,
+    signal: options?.signal,
     headers: {
       Authorization: `Bearer ${token}`,
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
@@ -95,9 +102,7 @@ async function requestYouTubeApi<T>(
   return (await response.json()) as T;
 }
 
-export async function listYouTubePlaylists(options?: {
-  interactive?: boolean;
-}): Promise<YouTubePlaylist[]> {
+export async function listYouTubePlaylists(options?: YouTubeRequestOptions): Promise<YouTubePlaylist[]> {
   const playlists: YouTubePlaylist[] = [];
   let pageToken: string | undefined;
 
@@ -144,7 +149,7 @@ export async function listYouTubePlaylists(options?: {
 export async function getPlaylistMembership(
   playlistId: string,
   videoId: string,
-  options?: { interactive?: boolean },
+  options?: YouTubeRequestOptions,
 ): Promise<YouTubePlaylistMembership | null> {
   let pageToken: string | undefined;
 
@@ -153,6 +158,7 @@ export async function getPlaylistMembership(
       maxResults: "50",
       part: "snippet",
       playlistId,
+      videoId,
     });
 
     if (pageToken) {
@@ -183,12 +189,18 @@ export async function getPlaylistMembership(
   return null;
 }
 
-export async function toggleVideoInPlaylist(
+export async function setVideoInPlaylist(
+  action: PlaylistVideoAction,
   playlist: YouTubePlaylist,
   video: YouTubeVideoContext,
-  options?: { interactive?: boolean },
-): Promise<TogglePlaylistVideoResult> {
+  options?: YouTubeRequestOptions,
+): Promise<PlaylistVideoResult> {
   const membership = await getPlaylistMembership(playlist.id, video.videoId, options);
+
+  // Recheck the current state, while preserving the action the user chose.
+  if ((action === "add" && membership) || (action === "remove" && !membership)) {
+    return { action: "unchanged", playlist, membership };
+  }
 
   if (membership) {
     const deleteParams = new URLSearchParams({ id: membership.playlistItemId });

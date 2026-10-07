@@ -1,7 +1,7 @@
 {
   "name": "Quick Bookmark",
   "description": "Quickly bookmark or open existing bookmarks",
-  "version": "3.0.1",
+  "version": "4.0.0",
   "manifest_version": 3,
   "permissions": ["bookmarks", "tabs", "tabGroups", "storage", "identity"],
   "host_permissions": [
@@ -17,6 +17,10 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Quick Bookmark"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   },
   "background": {
     "service_worker": "background.js",

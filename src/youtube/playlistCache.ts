@@ -1,4 +1,4 @@
-import { listYouTubePlaylists } from "./api";
+import { listYouTubePlaylists, type YouTubeRequestOptions } from "./api";
 import type { YouTubePlaylist, YouTubePlaylistCache } from "./types";
 
 const YOUTUBE_PLAYLIST_CACHE_KEY = "youtubePlaylistCache";
@@ -71,14 +71,7 @@ export async function readYouTubePlaylistCache(): Promise<YouTubePlaylistCache |
 	return null;
 }
 
-export async function readCachedYouTubePlaylists(): Promise<YouTubePlaylist[] | null> {
-	const cache = await readYouTubePlaylistCache();
-	return cache?.playlists ?? null;
-}
-
-export async function refreshYouTubePlaylistCache(options?: {
-	interactive?: boolean;
-}): Promise<YouTubePlaylistCache> {
+export async function refreshYouTubePlaylistCache(options?: YouTubeRequestOptions): Promise<YouTubePlaylistCache> {
 	const playlists = await listYouTubePlaylists(options);
 	const cache: YouTubePlaylistCache = {
 		version: YOUTUBE_PLAYLIST_CACHE_VERSION,
@@ -106,7 +99,6 @@ export async function adjustCachedYouTubePlaylistItemCount(
 
 	const nextCache: YouTubePlaylistCache = {
 		...cache,
-		updatedAt: Date.now(),
 		playlists: cache.playlists.map((playlist) =>
 			playlist.id === playlistId
 				? {
@@ -126,6 +118,7 @@ export async function adjustCachedYouTubePlaylistItemCount(
 export async function ensureYouTubePlaylistCache(options?: {
 	interactive?: boolean;
 	maxAgeMs?: number;
+	signal?: AbortSignal;
 }): Promise<YouTubePlaylistCache> {
 	const maxAgeMs = options?.maxAgeMs ?? YOUTUBE_PLAYLIST_CACHE_TTL_MS;
 	const cache = await readYouTubePlaylistCache();
@@ -134,7 +127,7 @@ export async function ensureYouTubePlaylistCache(options?: {
 		return cache;
 	}
 
-	return refreshYouTubePlaylistCache({ interactive: options?.interactive });
+	return refreshYouTubePlaylistCache(options);
 }
 
 export async function readLastUsedYouTubePlaylistId(): Promise<string | null> {

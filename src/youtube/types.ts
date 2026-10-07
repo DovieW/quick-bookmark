@@ -12,10 +12,10 @@ export interface YouTubePlaylistMembership {
 	videoId: string;
 }
 
-export type TogglePlaylistVideoAction = "added" | "removed";
+export type PlaylistVideoAction = "add" | "remove";
 
-export interface TogglePlaylistVideoResult {
-	action: TogglePlaylistVideoAction;
+export interface PlaylistVideoResult {
+	action: "added" | "removed" | "unchanged";
 	playlist: YouTubePlaylist;
 	membership: YouTubePlaylistMembership | null;
 }

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quick Bookmark Settings</title>
+  </head>
+  <body>
+    <main class="settings-page">
+      <header class="settings-header">
+        <p class="settings-eyebrow">Quick Bookmark</p>
+        <h1>Settings</h1>
+        <p>Make bookmark search work the way you prefer.</p>
+      </header>
+      <section class="settings-card" aria-labelledby="search-heading">
+        <h2 id="search-heading">Bookmark search</h2>
+        <label class="settings-option">
+          <input id="search-urls" type="checkbox" disabled aria-describedby="search-description" />
+          <span>Include URLs and domains</span>
+        </label>
+        <p id="search-description">Off by default. Search matches bookmark titles unless you enable this option.</p>
+      </section>
+      <p id="save-status" class="settings-status" role="status">Loading settings…</p>
+    </main>
+    <script type="module" src="./src/settings/main.ts"></script>
+  </body>
+</html>

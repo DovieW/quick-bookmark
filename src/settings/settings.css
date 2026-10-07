@@ -1,0 +1,17 @@
+.settings-page { max-width: 620px; margin: 72px auto; padding: 0 28px; }
+.settings-eyebrow { color: var(--color-text-muted); font-size: 13px; font-weight: 500; margin: 0 0 12px; }
+.settings-header h1 { margin: 0 0 10px; font-size: 28px; font-weight: 600; letter-spacing: -0.6px; }
+.settings-header > p:last-child, .settings-card p, .settings-status { color: var(--color-text-muted); line-height: 1.6; }
+.settings-header > p:last-child { font-size: 15px; }
+.settings-card { margin-top: 36px; padding: 22px; border: 1px solid var(--color-divider); border-radius: 9px; background: var(--color-panel); }
+.settings-card h2 { margin: 0 0 20px; font-size: 13px; font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+.settings-option { display: flex; gap: 18px; align-items: center; cursor: pointer; font-weight: 500; font-size: 16px; }
+.settings-option input { order: 1; margin: 0 0 0 auto; appearance: none; width: 44px; height: 26px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-panel-hover); position: relative; flex-shrink: 0; cursor: pointer; }
+.settings-option input::before { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--color-text-muted); }
+.settings-option input:checked { background: var(--color-primary); border-color: var(--color-primary); }
+.settings-option input:checked::before { left: 21px; background: var(--color-bg); }
+.settings-option input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.settings-option input:disabled { opacity: 0.5; cursor: default; }
+.settings-card p { margin: 10px 62px 0 0; font-size: 15px; }
+.settings-status { font-size: 14px; min-height: 22px; margin-top: 16px; }
+@media (max-width: 480px) { .settings-page { margin-top: 32px; padding: 0 20px; } }

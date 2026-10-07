@@ -1,435 +1,182 @@
-import Fuse from "fuse.js";
 import { SET_ACTION_STATUS_MESSAGE } from "../actionStatus";
-import { createIcon } from "../popup/icons";
-import { toggleVideoInPlaylist } from "../youtube/api";
+import { getPlaylistMembership, setVideoInPlaylist } from "../youtube/api";
 import { hasConfiguredYouTubeAuth } from "../youtube/auth";
-import {
-  adjustCachedYouTubePlaylistItemCount,
-  ensureYouTubePlaylistCache,
-  readLastUsedYouTubePlaylistId,
-  readYouTubePlaylistCache,
-  refreshYouTubePlaylistCache,
-  writeLastUsedYouTubePlaylistId,
-} from "../youtube/playlistCache";
-import type { YouTubePlaylist } from "../youtube/types";
+import { adjustCachedYouTubePlaylistItemCount, ensureYouTubePlaylistCache,
+  readLastUsedYouTubePlaylistId, readYouTubePlaylistCache,
+  refreshYouTubePlaylistCache, writeLastUsedYouTubePlaylistId } from "../youtube/playlistCache";
+import type { YouTubePlaylist, YouTubePlaylistMembership } from "../youtube/types";
 import type { YouTubeVideoContext } from "../youtube/videoContext";
-
-interface ViewController {
-  destroy(): void;
-}
-
-function createEmptyState(label: string) {
-  const emptyState = document.createElement("div");
-  emptyState.className = "empty-state";
-  emptyState.textContent = label;
-  return emptyState;
-}
-
-function createAlert(kind: "warning" | "error", message: string) {
-  const alert = document.createElement("div");
-  alert.className = `status-alert status-alert--${kind}`;
-  alert.textContent = message;
-  return alert;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function promoteLastUsedPlaylist(
-  playlists: YouTubePlaylist[],
-  lastUsedPlaylistId: string | null,
-): YouTubePlaylist[] {
-  if (!lastUsedPlaylistId) {
-    return playlists;
-  }
-
-  const promotedPlaylistIndex = playlists.findIndex(
-    (playlist) => playlist.id === lastUsedPlaylistId,
-  );
-
-  if (promotedPlaylistIndex <= 0) {
-    return playlists;
-  }
-
-  const promotedPlaylist = playlists[promotedPlaylistIndex];
-  return [
-    promotedPlaylist,
-    ...playlists.slice(0, promotedPlaylistIndex),
-    ...playlists.slice(promotedPlaylistIndex + 1),
-  ];
-}
-
-function createPlaylistSearch(playlists: YouTubePlaylist[]) {
-  return new Fuse(playlists, {
-    keys: ["title", "description"],
-    threshold: 0.3,
-  });
-}
-
-export function mountYouTubePlaylistPicker(
-  container: HTMLElement,
-  video: YouTubeVideoContext,
-): ViewController {
-  let destroyed = false;
-  let playlists: YouTubePlaylist[] = [];
-  let filtered: YouTubePlaylist[] = [];
-  let searchTerm = "";
-  let activeIndex = 0;
-  let isLoading = true;
-  let isSubmitting = false;
-  let errorMessage: string | null = null;
-  let lastUsedPlaylistId: string | null = null;
-  let selectedItem: HTMLLIElement | null = null;
-  let selectedButton: HTMLButtonElement | null = null;
-  let fuse: Fuse<YouTubePlaylist> | null = null;
-  const hasYouTubeAuthConfig = hasConfiguredYouTubeAuth();
-
-  const root = document.createElement("section");
-  root.className = "popup-view youtube-picker";
-
-  const input = document.createElement("input");
-  input.className = "search-input search-input--youtube";
-  input.type = "text";
-  input.placeholder = "Search playlists...";
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  input.setAttribute("aria-label", "Search playlists");
-
-  const alerts = document.createElement("div");
-  alerts.className = "status-alerts";
-
-  const scroller = document.createElement("div");
-  scroller.className = "results-scroller";
-
-  const list = document.createElement("ul");
-  list.className = "result-list";
-
-  const highlight = document.createElement("div");
-  highlight.className = "selection-highlight";
-  highlight.hidden = true;
-
-  list.append(highlight);
-  scroller.append(list);
-  root.append(input, alerts, scroller);
-  container.replaceChildren(root);
-
-  const focusInput = () => {
-    if (destroyed || isLoading || isSubmitting) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      input.focus();
-    });
-  };
-
-  const updateHighlight = () => {
-    if (!selectedItem || !selectedButton) {
-      highlight.hidden = true;
-      return;
-    }
-
-    const gutter = 3;
-    highlight.hidden = false;
-    highlight.style.top = `${selectedItem.offsetTop}px`;
-    highlight.style.height = `${selectedButton.offsetHeight}px`;
-    highlight.style.width = `${Math.max(selectedButton.offsetWidth - gutter * 2, 0)}px`;
-    highlight.style.left = `${gutter}px`;
-    selectedItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  };
-
-  const syncFiltered = () => {
-    if (!searchTerm) {
-      filtered = promoteLastUsedPlaylist(playlists, lastUsedPlaylistId);
-    } else {
-      if (!fuse) {
-        fuse = createPlaylistSearch(playlists);
-      }
-
-      filtered = fuse.search(searchTerm).map((result) => result.item);
-    }
-
-    if (filtered.length === 0) {
-      activeIndex = 0;
-      return;
-    }
-
-    const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
-    activeIndex = Math.min(activeIndex, maxDisplayedIndex);
-  };
-
-  const render = () => {
-    input.value = searchTerm;
-    input.disabled = isLoading || isSubmitting;
-    alerts.replaceChildren();
-
-    if (!hasYouTubeAuthConfig) {
-      alerts.append(
-        createAlert(
-          "warning",
-          "Add VITE_YOUTUBE_CLIENT_ID to .env before connecting YouTube.",
-        ),
-      );
-    }
-
-    if (errorMessage) {
-      alerts.append(createAlert("error", errorMessage));
-    }
-
-    if (playlists.length === 0 && !isLoading) {
-      const emptyBox = document.createElement("div");
-      emptyBox.className = "empty-action-box";
-
-      const copy = document.createElement("p");
-      copy.className = "empty-action-copy";
-      copy.textContent = "Connect YouTube to load your playlists into the quick picker.";
-
-      const connectButton = document.createElement("button");
-      connectButton.type = "button";
-      connectButton.className = "primary-button primary-button--youtube";
-      connectButton.textContent = "Connect YouTube";
-      connectButton.disabled = !hasYouTubeAuthConfig || isSubmitting || isLoading;
-      connectButton.addEventListener("click", () => {
-        void handleConnect();
-      });
-
-      emptyBox.append(copy, connectButton);
-      scroller.replaceChildren(emptyBox);
-      highlight.hidden = true;
-      return;
-    }
-
-    scroller.replaceChildren(list);
-    list.replaceChildren(highlight);
-    selectedItem = null;
-    selectedButton = null;
-
-    if (isLoading && playlists.length === 0) {
-      list.append(createEmptyState("Loading playlists…"));
-      updateHighlight();
-      return;
-    }
-
-    if (filtered.length === 0) {
-      list.append(createEmptyState("No playlists match your search."));
-      updateHighlight();
-      return;
-    }
-
-    filtered.slice(0, 20).forEach((playlist, index) => {
-      const isSelected = index === activeIndex;
-
-      const listItem = document.createElement("li");
-      listItem.className = "result-item";
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `result-button${isSelected ? " is-selected" : ""}`;
-      button.disabled = isSubmitting;
-      button.addEventListener("click", () => {
-        void handleTogglePlaylist(playlist);
-      });
-
-      const icon = document.createElement("span");
-      icon.className = "row-icon";
-      icon.append(createIcon("playlist-add", 16));
-
-      const copy = document.createElement("span");
-      copy.className = "row-text";
-
-      const title = document.createElement("span");
-      title.className = "row-title";
-      title.textContent = playlist.title;
-
-      const subtitle = document.createElement("span");
-      subtitle.className = "row-subtitle";
-      subtitle.textContent = `${playlist.itemCount} video${playlist.itemCount === 1 ? "" : "s"}`;
-
-      copy.append(title, subtitle);
-      button.append(icon, copy);
-      listItem.append(button);
-      list.append(listItem);
-
-      if (isSelected) {
-        selectedItem = listItem;
-        selectedButton = button;
-      }
-    });
-
-    requestAnimationFrame(() => {
-      if (!destroyed) {
-        updateHighlight();
-      }
-    });
-  };
-
-  const applyPlaylistSelection = async (nextPlaylists: YouTubePlaylist[]) => {
-    playlists = nextPlaylists;
-    fuse = null;
-    lastUsedPlaylistId = await readLastUsedYouTubePlaylistId();
-
-    if (destroyed) {
-      return;
-    }
-
-    activeIndex = 0;
-    syncFiltered();
-  };
-
-  const loadPlaylists = async (options?: {
-    interactive?: boolean;
-    forceRefresh?: boolean;
-  }) => {
-    const interactive = options?.interactive ?? false;
-    const forceRefresh = options?.forceRefresh ?? false;
-
-    errorMessage = null;
-    isLoading = true;
-    render();
-
-    const cachedPlaylists = forceRefresh
-      ? null
-      : await readYouTubePlaylistCache().then((cache) => cache?.playlists ?? null);
-
-    if (destroyed) {
-      return;
-    }
-
-    if (cachedPlaylists?.length) {
-      await applyPlaylistSelection(cachedPlaylists);
-
-      if (destroyed) {
-        return;
-      }
-
-      isLoading = false;
-      render();
-      focusInput();
-    }
-
-    try {
-      const nextCache = forceRefresh
-        ? await refreshYouTubePlaylistCache({ interactive })
-        : await ensureYouTubePlaylistCache({ interactive });
-
-      if (destroyed) {
-        return;
-      }
-
-      await applyPlaylistSelection(nextCache.playlists);
-    } catch (error) {
-      if (!cachedPlaylists?.length) {
-        errorMessage = getErrorMessage(error);
-      }
-    } finally {
-      if (!destroyed) {
-        isLoading = false;
-        render();
-        focusInput();
-      }
-    }
-  };
-
-  const sendStatusBadge = async (status: "saved" | "removed" | "warning") => {
-    if (video.tabId === undefined) {
-      return;
-    }
-
-    await chrome.runtime.sendMessage({
-      type: SET_ACTION_STATUS_MESSAGE,
-      status,
-      tabId: video.tabId,
-    });
-  };
-
-  const handleTogglePlaylist = async (playlist: YouTubePlaylist) => {
-    isSubmitting = true;
-    errorMessage = null;
-    render();
-
-    try {
-      const result = await toggleVideoInPlaylist(playlist, video, {
-        interactive: true,
-      });
-      await writeLastUsedYouTubePlaylistId(playlist.id);
-      lastUsedPlaylistId = playlist.id;
-
-      const itemCountDelta = result.action === "removed" ? -1 : 1;
-      await adjustCachedYouTubePlaylistItemCount(playlist.id, itemCountDelta);
-      await sendStatusBadge(result.action === "removed" ? "removed" : "saved");
-      window.close();
-    } catch (error) {
-      errorMessage = getErrorMessage(error);
-      await sendStatusBadge("warning");
-    } finally {
-      if (!destroyed) {
-        isSubmitting = false;
-        render();
-        focusInput();
-      }
-    }
-  };
-
-  const handleSearch = (term: string) => {
-    searchTerm = term;
-    activeIndex = 0;
-    syncFiltered();
-    render();
-  };
-
-  const handleInputKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Enter") {
-      if (filtered.length > 0 && activeIndex < filtered.length) {
-        void handleTogglePlaylist(filtered[activeIndex]);
-      }
-      return;
-    }
-
-    if (
-      (event.ctrlKey && event.key.toLowerCase() === "n") ||
-      event.key === "ArrowDown"
-    ) {
-      event.preventDefault();
-
-      if (filtered.length > 0) {
-        const maxDisplayedIndex = Math.min(filtered.length - 1, 19);
-        activeIndex = Math.min(activeIndex + 1, maxDisplayedIndex);
-        render();
-      }
-      return;
-    }
-
-    if (
-      (event.ctrlKey && event.key.toLowerCase() === "p") ||
-      event.key === "ArrowUp"
-    ) {
-      event.preventDefault();
-
-      if (filtered.length > 0) {
-        activeIndex = Math.max(activeIndex - 1, 0);
-        render();
-      }
-    }
-  };
-
-  const handleConnect = async () => {
-    await loadPlaylists({ interactive: true, forceRefresh: true });
-  };
-
-  input.addEventListener("input", () => {
-    handleSearch(input.value);
-  });
-  input.addEventListener("keydown", handleInputKeyDown);
-
-  render();
-  void loadPlaylists();
-
-  return {
-    destroy() {
-      destroyed = true;
-      input.removeEventListener("keydown", handleInputKeyDown);
-      root.remove();
+import { createFuzzyFilter } from "../search";
+import { createPicker, type ViewController } from "./Picker";
+
+type MembershipState = { membership: YouTubePlaylistMembership | null } | { error: string };
+
+export function mountYouTubePlaylistPicker(container: HTMLElement, video: YouTubeVideoContext): ViewController {
+  const states = new Map<string, MembershipState>();
+  const pending = new Set<string>();
+  const controller = new AbortController();
+  let queue: YouTubePlaylist[] = [];
+  let workers = 0;
+  let generation = 0;
+  let lastUsed: string | null = null;
+  const configured = hasConfiguredYouTubeAuth();
+  const fuzzyFilter = createFuzzyFilter<YouTubePlaylist>({ keys: ["title", "description"] });
+  const picker = createPicker<YouTubePlaylist>(container, {
+    placeholder: "Search playlists...", emptyLabel: "No playlists match your search.",
+    itemLabel: "playlists", selectLabel: "Select",
+    filter(items, query) {
+      if (query.trim()) return fuzzyFilter(items, query);
+      return [...items].sort((a, b) => Number(b.id === lastUsed) - Number(a.id === lastUsed));
     },
-  };
+    describe(playlist) {
+      const state = states.get(playlist.id);
+      const count = `${playlist.itemCount} video${playlist.itemCount === 1 ? "" : "s"}`;
+      if (!state) return { title: playlist.title, subtitle: `${count} · Checking membership…`,
+        icon: "playlist-add", actionLabel: "Checking…", disabled: true };
+      if ("error" in state) return { title: playlist.title, subtitle: "Could not check membership. Retry to continue.",
+        icon: "playlist-add", actionLabel: "Retry" };
+      return { title: playlist.title, subtitle: state.membership ? `${count} · Already added` : count,
+        icon: state.membership ? "check" : "playlist-add", actionLabel: state.membership ? "Remove" : "Add" };
+    },
+    onVisible(items) {
+      for (const playlist of items) {
+        if (!states.has(playlist.id) && !pending.has(playlist.id)) {
+          pending.add(playlist.id);
+          queue.push(playlist);
+        }
+      }
+      startChecks();
+    },
+    async onSelect(playlist) {
+      const state = states.get(playlist.id);
+      if (!state || "error" in state) {
+        // Retrying a failed check only reads state; it never mutates a playlist.
+        states.delete(playlist.id);
+        picker.refresh();
+        return;
+      }
+      const action = state.membership ? "remove" : "add";
+      let result;
+      try {
+        result = await setVideoInPlaylist(action, playlist, video, {
+          interactive: false, signal: controller.signal,
+        });
+      } catch (error) {
+        states.delete(playlist.id);
+        void sendBadge("warning");
+        throw error;
+      }
+      // API success remains success if a preference, count, or badge update fails.
+      const delta = result.action === "added" ? 1 : result.action === "removed" ? -1 : 0;
+      await Promise.allSettled([
+        writeLastUsedYouTubePlaylistId(playlist.id),
+        delta ? adjustCachedYouTubePlaylistItemCount(playlist.id, delta) : Promise.resolve(),
+        sendBadge(action === "add" ? "saved" : "removed"),
+      ]);
+      window.close();
+    },
+  });
+  picker.root.classList.add("youtube-picker");
+  picker.input.classList.add("search-input--youtube");
+  const controls = document.createElement("div");
+  controls.className = "playlist-controls";
+  const connect = document.createElement("button");
+  connect.type = "button";
+  connect.className = "text-button";
+  connect.textContent = "Connect YouTube";
+  connect.disabled = !configured;
+  const refresh = document.createElement("button");
+  refresh.type = "button";
+  refresh.className = "text-button";
+  refresh.textContent = "Refresh";
+  refresh.title = "Refresh playlists";
+  refresh.hidden = true;
+  controls.append(connect, refresh);
+  picker.root.insertBefore(controls, picker.scroller);
+
+  async function sendBadge(status: "saved" | "removed" | "warning") {
+    if (video.tabId === undefined) return;
+    await chrome.runtime.sendMessage({ type: SET_ACTION_STATUS_MESSAGE, status, tabId: video.tabId })
+      .catch(error => console.warn("Could not update status badge", error));
+  }
+  function startChecks() {
+    if (picker?.destroyed || controller.signal.aborted) return;
+    while (workers < 4 && queue.length) {
+      workers++;
+      void checkQueue();
+    }
+  }
+  async function checkQueue() {
+    try {
+      while (queue.length && !picker.destroyed) {
+        const playlist = queue.shift()!;
+        const requestGeneration = generation;
+        let state: MembershipState;
+        try {
+          state = { membership: await getPlaylistMembership(playlist.id, video.videoId, {
+            interactive: false, signal: controller.signal,
+          }) };
+        } catch (error) {
+          state = { error: error instanceof Error ? error.message : String(error) };
+        }
+        if (picker.destroyed) return;
+        if (requestGeneration === generation) {
+          states.set(playlist.id, state);
+          pending.delete(playlist.id);
+          picker.refresh();
+        }
+      }
+    } finally { workers--; startChecks(); }
+  }
+  async function load(interactive = false, forceRefresh = false) {
+    connect.disabled = true;
+    refresh.disabled = true;
+    picker.setError("");
+    picker.setLoading(true);
+    try {
+      lastUsed = await readLastUsedYouTubePlaylistId();
+      if (picker.destroyed) return;
+      if (!forceRefresh) {
+        const cached = await readYouTubePlaylistCache();
+        if (picker.destroyed) return;
+        if (cached?.playlists.length) {
+          picker.setItems(cached.playlists);
+          picker.setLoading(false);
+        }
+      }
+      const cache = forceRefresh
+        ? await refreshYouTubePlaylistCache({ interactive, signal: controller.signal })
+        : await ensureYouTubePlaylistCache({ interactive, signal: controller.signal });
+      if (picker.destroyed) return;
+      picker.setItems(cache.playlists);
+      refresh.hidden = false;
+      connect.textContent = "Reconnect";
+      connect.title = "Reconnect YouTube";
+      if (!cache.playlists.length) picker.setError("Your account has no playlists. Create one in YouTube, then refresh.");
+    } catch (error) {
+      if (!picker.destroyed) picker.setError(error);
+    } finally {
+      if (!picker.destroyed) {
+        picker.setLoading(false);
+        connect.disabled = !configured;
+        refresh.disabled = false;
+      }
+    }
+  }
+  connect.addEventListener("click", () => {
+    if (picker.busy) return;
+    generation++; states.clear(); pending.clear(); queue = [];
+    void load(true, true);
+  });
+  refresh.addEventListener("click", () => {
+    if (picker.busy) return;
+    generation++; states.clear(); pending.clear(); queue = [];
+    void load(false, true);
+  });
+  if (configured) void load();
+  else {
+    picker.setLoading(false);
+    picker.setError("YouTube is not available in this build. You can still save this page as a bookmark with Ctrl+D.");
+  }
+  return { destroy() { generation++; controller.abort(); queue = []; picker.destroy(); } };
 }

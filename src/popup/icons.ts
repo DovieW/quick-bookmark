@@ -7,11 +7,18 @@ export type IconName =
   | "bookmark"
   | "copy"
   | "language"
-  | "more-vertical";
+  | "more-vertical"
+  | "settings"
+  | "check";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 const iconMarkup: Record<IconName, string> = {
+  settings: `
+    <path d="m9.5 3-.7 2.2-2.2 1.3-2.3-.5-2 3.5 1.6 1.7v2.6l-1.6 1.7 2 3.5 2.3-.5 2.2 1.3.7 2.2h4.9l.7-2.2 2.2-1.3 2.3.5 2-3.5-1.6-1.7v-2.6l1.6-1.7-2-3.5-2.3.5-2.2-1.3L14.4 3Z" />
+    <circle cx="12" cy="12" r="3" />
+  `,
+  check: `<path d="m5 12 4 4L19 6" />`,
   "bookmark-add": `
     <path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3-5 3V4.75Z" />
     <path d="M12 7.5v5" />

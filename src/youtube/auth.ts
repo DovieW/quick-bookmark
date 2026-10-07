@@ -1,12 +1,13 @@
-const YOUTUBE_CLIENT_ID = import.meta.env.VITE_YOUTUBE_CLIENT_ID?.trim() ?? "";
 const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube";
 const AUTH_PLACEHOLDER_PREFIX = "YOUR_";
 const AUTH_TOKEN_KEY = "youtubeAccessToken";
 
 function isYouTubeClientIdConfigured(): boolean {
+  const clientId = chrome.runtime.getManifest().oauth2?.client_id?.trim()
+    ?? import.meta.env?.VITE_YOUTUBE_CLIENT_ID?.trim() ?? "";
   return (
-    YOUTUBE_CLIENT_ID.length > 0 &&
-    !YOUTUBE_CLIENT_ID.startsWith(AUTH_PLACEHOLDER_PREFIX)
+    clientId.length > 0 &&
+    !clientId.startsWith(AUTH_PLACEHOLDER_PREFIX)
   );
 }
 

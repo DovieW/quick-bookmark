@@ -1,3 +1,4 @@
+import { createIcon } from "../popup/icons";
 import { SET_ACTION_STATUS_MESSAGE } from "../actionStatus";
 import { getPlaylistMembership, setVideoInPlaylist } from "../youtube/api";
 import { hasConfiguredYouTubeAuth } from "../youtube/auth";
@@ -78,21 +79,45 @@ export function mountYouTubePlaylistPicker(container: HTMLElement, video: YouTub
   });
   picker.root.classList.add("youtube-picker");
   picker.input.classList.add("search-input--youtube");
-  const controls = document.createElement("div");
-  controls.className = "playlist-controls";
+  const controls = document.createElement("details");
+  controls.className = "playlist-actions";
+  const toggle = document.createElement("summary");
+  toggle.title = "Playlist actions";
+  toggle.setAttribute("aria-label", "Playlist actions");
+  toggle.append(createIcon("more-vertical", 16));
+  const actions = document.createElement("div");
+  actions.className = "playlist-actions-panel";
+  controls.append(toggle, actions);
   const connect = document.createElement("button");
   connect.type = "button";
-  connect.className = "text-button";
+  connect.className = "menu-item";
   connect.textContent = "Connect YouTube";
   connect.disabled = !configured;
   const refresh = document.createElement("button");
   refresh.type = "button";
-  refresh.className = "text-button";
+  refresh.className = "menu-item";
   refresh.textContent = "Refresh";
   refresh.title = "Refresh playlists";
   refresh.hidden = true;
-  controls.append(connect, refresh);
-  picker.root.insertBefore(controls, picker.scroller);
+  actions.append(connect, refresh);
+  picker.input.parentElement!.append(controls);
+  picker.input.classList.add("search-input--actions");
+  const closeActions = (focus = false) => {
+    controls.open = false;
+    if (focus) toggle.focus();
+  };
+  const dismissActions = (event: PointerEvent) => {
+    if (event.target instanceof Node && !controls.contains(event.target)) closeActions();
+  };
+  const escapeActions = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && controls.open) {
+      event.preventDefault();
+      closeActions(true);
+    }
+  };
+  document.addEventListener("pointerdown", dismissActions);
+  document.addEventListener("keydown", escapeActions);
+  picker.input.addEventListener("input", () => closeActions());
 
   async function sendBadge(status: "saved" | "removed" | "warning") {
     if (video.tabId === undefined) return;
@@ -165,11 +190,13 @@ export function mountYouTubePlaylistPicker(container: HTMLElement, video: YouTub
   }
   connect.addEventListener("click", () => {
     if (picker.busy) return;
+    closeActions();
     generation++; states.clear(); pending.clear(); queue = [];
     void load(true, true);
   });
   refresh.addEventListener("click", () => {
     if (picker.busy) return;
+    closeActions();
     generation++; states.clear(); pending.clear(); queue = [];
     void load(false, true);
   });
@@ -178,5 +205,9 @@ export function mountYouTubePlaylistPicker(container: HTMLElement, video: YouTub
     picker.setLoading(false);
     picker.setError("YouTube is not available in this build. You can still save this page as a bookmark with Ctrl+D.");
   }
-  return { destroy() { generation++; controller.abort(); queue = []; picker.destroy(); } };
+  return { destroy() {
+    document.removeEventListener("pointerdown", dismissActions);
+    document.removeEventListener("keydown", escapeActions);
+    generation++; controller.abort(); queue = []; picker.destroy();
+  } };
 }

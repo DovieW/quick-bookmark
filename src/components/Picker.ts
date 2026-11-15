@@ -1,9 +1,11 @@
+import { findMatchRanges } from "../search";
 import { createIcon, type IconName } from "../popup/icons";
 
 export interface ViewController { destroy(): void; }
 export interface PickerRow {
   title: string;
   subtitle: string;
+  tooltip?: string;
   icon: IconName;
   actionLabel?: string;
   disabled?: boolean;
@@ -40,6 +42,23 @@ interface RenderedRow<T> {
 
 function setText(element: HTMLElement, text: string) {
   if (element.textContent !== text) element.textContent = text;
+}
+
+function setHighlightedText(element: HTMLElement, text: string, query: string) {
+  const key = JSON.stringify([text, query]);
+  if (element.dataset.highlight === key) return;
+  element.dataset.highlight = key;
+  const fragments: (string | HTMLElement)[] = [];
+  let offset = 0;
+  for (const [start, end] of findMatchRanges(text, query)) {
+    fragments.push(text.slice(offset, start));
+    const mark = document.createElement("mark");
+    mark.textContent = text.slice(start, end + 1);
+    fragments.push(mark);
+    offset = end + 1;
+  }
+  fragments.push(text.slice(offset));
+  element.replaceChildren(...fragments);
 }
 
 export function createPicker<T extends { id: string }>(container: HTMLElement, options: PickerOptions<T>) {
@@ -201,8 +220,9 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
       rows.set(item.id, entry);
       entry.item = item;
       const row = options.describe(item);
-      setText(entry.title, row.title);
-      setText(entry.subtitle, row.subtitle);
+      setHighlightedText(entry.title, row.title, input.value);
+      setHighlightedText(entry.subtitle, row.subtitle, input.value);
+      entry.subtitle.hidden = !row.subtitle;
       setText(entry.actionLabel, row.actionLabel ?? "");
       entry.actionLabel.hidden = !row.actionLabel;
       if (entry.iconName !== row.icon) {
@@ -210,7 +230,7 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
         entry.icon.replaceChildren(createIcon(row.icon, 16));
       }
       entry.button.disabled = loading || submitting || !!row.disabled;
-      entry.button.title = `${row.title}\n${row.subtitle}`;
+      entry.button.title = row.tooltip ?? `${row.title}\n${row.subtitle}`;
       entry.button.setAttribute("aria-label", row.actionLabel ? `${row.actionLabel}: ${row.title}` : row.title);
       if (entry.secondary && options.secondaryAction) {
         entry.secondary.disabled = loading || submitting;
@@ -245,6 +265,17 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
   };
   input.addEventListener("input", handleInput);
   input.addEventListener("keydown", handleKey);
+  // Fit complete 48px rows with 2px spacing, leaving room for alerts and context.
+  const fitRows = () => {
+    const shell = root.closest<HTMLElement>(".popup-shell");
+    if (!shell || destroyed) return;
+    const available = Math.min(400, 560 - (shell.offsetHeight - scroller.offsetHeight));
+    const height = Math.max(50, Math.floor(available / 50) * 50);
+    if (scroller.style.maxHeight !== `${height}px`) scroller.style.maxHeight = `${height}px`;
+    updateSelection(true);
+  };
+  const layoutObserver = new ResizeObserver(fitRows);
+  layoutObserver.observe(root);
   render();
   return {
     root, input, scroller,
@@ -258,6 +289,7 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
     run,
     destroy() {
       destroyed = true;
+      layoutObserver.disconnect();
       rows.clear();
       input.removeEventListener("input", handleInput);
       input.removeEventListener("keydown", handleKey);

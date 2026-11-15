@@ -4,6 +4,7 @@ export type IconName =
   | "search"
   | "folder"
   | "folder-open"
+  | "external-link"
   | "bookmark"
   | "copy"
   | "language"
@@ -14,6 +15,7 @@ export type IconName =
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 const iconMarkup: Record<IconName, string> = {
+  "external-link": `<path d="M14 4h6v6M20 4l-9 9M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />`,
   settings: `
     <path d="m9.5 3-.7 2.2-2.2 1.3-2.3-.5-2 3.5 1.6 1.7v2.6l-1.6 1.7 2 3.5 2.3-.5 2.2 1.3.7 2.2h4.9l.7-2.2 2.2-1.3 2.3.5 2-3.5-1.6-1.7v-2.6l1.6-1.7-2-3.5-2.3.5-2.2-1.3L14.4 3Z" />
     <circle cx="12" cy="12" r="3" />

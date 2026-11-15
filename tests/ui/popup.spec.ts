@@ -41,6 +41,13 @@ test("keyboard selection is bounded, resets on search, and preserves adjacent-ta
   const input = page.getByRole("textbox");
   await expect(input).toBeEnabled();
   await expect(page.locator(".result-button")).toHaveCount(20);
+  await expect.poll(() => page.locator(".results-scroller").evaluate(scroller => {
+    const bottom = scroller.getBoundingClientRect().bottom;
+    return [...scroller.querySelectorAll(".result-item")].some(row => {
+      const rect = row.getBoundingClientRect();
+      return rect.top < bottom && rect.bottom > bottom + 0.5;
+    });
+  }), "initial results end at a complete row").toBe(false);
   const firstRow = await page.locator(".result-button").first().elementHandle();
   for (let index = 0; index < 25; index++) await input.press("ArrowDown");
   await expect(page.locator(".result-button.is-selected")).toHaveText(/Reference 19/);
@@ -89,10 +96,10 @@ test("mode switching cleans up old views and bookmark menus stay usable", async 
   await page.getByRole("textbox").press("Escape");
   await expect(page.locator(".popup-menu")).toBeHidden();
   await page.getByRole("textbox").press("Control+d");
-  await expect(page.getByRole("heading", { name: "Quick Bookmark" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quick Bookmark" })).toBeAttached();
   await expect(page.getByRole("textbox")).toBeEnabled();
   await page.getByRole("textbox").press("Alt+f");
-  await expect(page.getByRole("heading", { name: "Quick Open" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quick Open" })).toBeAttached();
   await expect(page.locator(".popup-view")).toHaveCount(1);
 });
 
@@ -108,11 +115,44 @@ test("visible mode controls switch views and selecting the current mode keeps se
   await expect(input).toHaveValue("Reference 1");
   await expect(input).toBeFocused();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Quick Bookmark" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quick Bookmark" })).toBeAttached();
   await expect(input).toHaveAttribute("placeholder", "Search folders...");
   await expect(input).toBeFocused();
   await page.getByRole("button", { name: "Open", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Quick Open" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quick Open" })).toBeAttached();
   await expect(input).toBeFocused();
   await expect(page.getByRole("button", { name: "Playlists", exact: true })).toBeHidden();
+});
+
+
+test("save context, concise paths, full tooltips, and search highlights stay usable", async ({ page }) => {
+  await installChromeMock(page, { mode: "add" });
+  await page.goto("/options.html");
+  await page.evaluate(() => {
+    chrome.bookmarks.getTree = (async () => [{ syncing: false, id: "0", title: "", children: [
+      { syncing: false, id: "1", title: "Bookmarks bar", children: [
+        { syncing: false, id: "f1", title: "Reading", children: [{ syncing: false, id: "f2", title: "<Weekend> reading", children: [] }] },
+      ] },
+    ] }]) as typeof chrome.bookmarks.getTree;
+  });
+  // Mount in the same document to retain the fixture without relying on init-script order.
+  await page.evaluate(async () => {
+    const root = document.createElement("div"); root.id = "root"; document.body.replaceChildren(root);
+    const entry = "/src/popup/main.tsx"; await import(entry);
+  });
+  const input = page.getByRole("textbox");
+  await expect(input).toBeEnabled();
+  await expect(page.locator(".page-context")).toHaveText("SavingExample page");
+  const reading = page.getByRole("button", { name: "Reading", exact: true });
+  await expect(reading.locator(".row-subtitle")).toBeHidden();
+  await expect(reading).toHaveAttribute("title", "Bookmarks bar / Reading");
+  await expect(page.getByRole("button", { name: "<Weekend> reading", exact: true }).locator(".row-subtitle"))
+    .toHaveText("Bookmarks bar / Reading");
+  await input.fill("weekend");
+  await expect(page.locator(".row-title mark")).toHaveText("Weekend");
+  await expect(page.locator(".row-title")).toHaveText("<Weekend> reading");
+  await input.fill("");
+  await expect(page.locator("mark")).toHaveCount(0);
+  await page.getByRole("button", { name: "Open folder: Reading", exact: true }).click();
+  expect(await page.evaluate(() => window.__qbTest.createdTabs[0])).toEqual({ url: "chrome://bookmarks/?id=f1" });
 });

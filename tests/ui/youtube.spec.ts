@@ -21,6 +21,17 @@ test("playlist picker shows membership and an explicit Remove action", async ({ 
   const remove = page.getByRole("button", { name: "Remove: Saved videos", exact: true });
   await expect(remove).toBeEnabled();
   await page.locator(".popup-shell").screenshot({ path: test.info().outputPath("playlist.png") });
+  const actions = page.getByLabel("Playlist actions", { exact: true });
+  await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeHidden();
+  await actions.click();
+  await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeVisible();
+  await actions.press("Escape");
+  await expect(actions).toBeFocused();
+  await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeHidden();
+  await actions.press("Enter");
+  await page.getByRole("textbox").click();
+  await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeHidden();
   await remove.click();
   await expect.poll(() => page.evaluate(() => window.__qbTest.closed)).toBe(1);
   expect(mutations).toEqual(["DELETE"]);
@@ -83,6 +94,6 @@ test("failed membership lookup offers a read-only Retry and permits mode switchi
   await expect(page.getByRole("button", { name: "Add: Saved videos", exact: true })).toBeEnabled();
   expect(mutations).toEqual([]);
   await page.getByRole("textbox").press("Control+d");
-  await expect(page.getByRole("heading", { name: "Quick Bookmark" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quick Bookmark" })).toBeAttached();
   await expect(page.getByRole("textbox")).toBeEnabled();
 });

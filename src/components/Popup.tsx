@@ -9,7 +9,7 @@ import {
   type QuickPopupContext,
   type QuickPopupMode,
 } from "../quickMode";
-import { createIcon, type IconName } from "../popup/icons";
+import { createIcon } from "../popup/icons";
 
 interface ViewController {
   destroy(): void;
@@ -18,7 +18,6 @@ interface ViewController {
 interface ModeMeta {
   title: string;
   subtitle: string;
-  icon: IconName;
   isYouTube: boolean;
 }
 
@@ -27,7 +26,6 @@ function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
     return {
       title: "Quick Open",
       subtitle: "Search and open bookmarks",
-      icon: "search",
       isYouTube: false,
     };
   }
@@ -36,7 +34,6 @@ function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
     return {
       title: "Quick Playlist",
       subtitle: "Add or remove this video from a YouTube playlist",
-      icon: "playlist-add",
       isYouTube: true,
     };
   }
@@ -44,7 +41,6 @@ function getModeMeta(popupContext: QuickPopupContext | null): ModeMeta {
   return {
     title: "Quick Bookmark",
     subtitle: popupContext === null ? "Loading…" : "Save to folder",
-    icon: "bookmark-add",
     isYouTube: false,
   };
 }
@@ -67,7 +63,7 @@ export function mountPopup(root: HTMLElement): ViewController {
   headerText.className = "header-copy";
 
   const title = document.createElement("h1");
-  title.className = "header-title";
+  title.className = "visually-hidden";
 
   const subtitle = document.createElement("p");
   subtitle.className = "header-subtitle";
@@ -106,12 +102,12 @@ export function mountPopup(root: HTMLElement): ViewController {
   });
 
   headerText.append(title, subtitle);
-  header.append(iconWrapper, headerText, modeSwitcher, settingsButton);
+  header.append(iconWrapper, modeSwitcher, settingsButton);
 
   const content = document.createElement("main");
   content.className = "popup-content";
 
-  shell.append(header, content);
+  shell.append(header, headerText, content);
   root.replaceChildren(shell);
 
   const originalOverflow = document.body.style.overflow;
@@ -122,7 +118,7 @@ export function mountPopup(root: HTMLElement): ViewController {
   const render = () => {
     const meta = getModeMeta(popupContext);
 
-    iconWrapper.replaceChildren(createIcon(meta.icon, 16));
+    iconWrapper.replaceChildren(createIcon("bookmark-add", 16));
     title.textContent = meta.title;
     subtitle.textContent = meta.subtitle;
     subtitle.classList.remove("is-error");

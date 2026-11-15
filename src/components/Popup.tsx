@@ -77,7 +77,7 @@ export function mountPopup(root: HTMLElement): ViewController {
   settingsButton.className = "settings-button";
   settingsButton.title = "Settings";
   settingsButton.setAttribute("aria-label", "Settings");
-  settingsButton.append(createIcon("settings", 20));
+  settingsButton.append(createIcon("settings", 16));
   settingsButton.addEventListener("click", () => {
     void chrome.runtime.openOptionsPage().then(() => window.close()).catch(() => {
       subtitle.textContent = "Could not open settings. Please try again.";
@@ -122,7 +122,7 @@ export function mountPopup(root: HTMLElement): ViewController {
   const render = () => {
     const meta = getModeMeta(popupContext);
 
-    iconWrapper.replaceChildren(createIcon(meta.icon, 20));
+    iconWrapper.replaceChildren(createIcon(meta.icon, 16));
     title.textContent = meta.title;
     subtitle.textContent = meta.subtitle;
     subtitle.classList.remove("is-error");

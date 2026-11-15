@@ -66,7 +66,7 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
   input.autocomplete = "off";
   input.spellcheck = false;
   input.setAttribute("aria-label", options.placeholder.replace(/\.+$/, ""));
-  searchField.append(createIcon("search", 18), input);
+  searchField.append(createIcon("search", 16), input);
   const alerts = document.createElement("div");
   alerts.className = "status-alerts";
   alerts.setAttribute("role", "status");
@@ -156,7 +156,7 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
       const secondary = document.createElement("button");
       secondary.type = "button";
       secondary.className = "row-action";
-      secondary.append(createIcon(action.icon, 18));
+      secondary.append(createIcon(action.icon, 16));
       secondary.addEventListener("click", () => {
         if (loading || submitting) return;
         try {
@@ -207,7 +207,7 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
       entry.actionLabel.hidden = !row.actionLabel;
       if (entry.iconName !== row.icon) {
         entry.iconName = row.icon;
-        entry.icon.replaceChildren(createIcon(row.icon, 18));
+        entry.icon.replaceChildren(createIcon(row.icon, 16));
       }
       entry.button.disabled = loading || submitting || !!row.disabled;
       entry.button.title = `${row.title}\n${row.subtitle}`;

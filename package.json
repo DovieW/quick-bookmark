@@ -16,9 +16,6 @@
     "package:kit": "node scripts/package-publishing-kit.mjs",
     "build:release": "npm run build && npm run package:zip"
   },
-  "dependencies": {
-    "fuse.js": "^7.0.0"
-  },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/chrome": "^0.3.4",

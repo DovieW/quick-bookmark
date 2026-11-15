@@ -20,7 +20,9 @@ Click the gear in the popup, or open **Extension options** from Chrome's extensi
 
 **Include URLs and domains** is **off by default**. Bookmark search matches titles until you enable it. When enabled, it also matches domains and full URLs, including paths. Changes save automatically on this browser profile and apply to an open picker.
 
-Folder usage is stored locally and counts successful bookmark saves only. Search queries still rank by text relevance.
+Search matches every word you type, in any order and anywhere in the allowed fields. Folder searches can combine a folder name with words from its parent path. Exact names rank first, followed by title words and prefixes, substrings, parent-path matches, and modest typo matches. Short words and numbers require literal matches. Highlighted text uses the same matching rules; matching parent paths are shown during folder searches.
+
+Folder usage is stored locally and counts successful bookmark saves only. Search queries rank by text relevance, with frequency and recency breaking ties.
 
 ## YouTube playlist setup
 

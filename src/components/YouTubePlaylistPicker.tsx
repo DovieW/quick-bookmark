@@ -32,11 +32,11 @@ export function mountYouTubePlaylistPicker(container: HTMLElement, video: YouTub
     describe(playlist) {
       const state = states.get(playlist.id);
       const count = `${playlist.itemCount} video${playlist.itemCount === 1 ? "" : "s"}`;
-      if (!state) return { title: playlist.title, subtitle: `${count} · Checking membership…`,
+      if (!state) return { title: playlist.title, highlightSubtitle: false, subtitle: `${count} · Checking membership…`,
         icon: "playlist-add", actionLabel: "Checking…", disabled: true };
-      if ("error" in state) return { title: playlist.title, subtitle: "Could not check membership. Retry to continue.",
+      if ("error" in state) return { title: playlist.title, highlightSubtitle: false, subtitle: "Could not check membership. Retry to continue.",
         icon: "playlist-add", actionLabel: "Retry" };
-      return { title: playlist.title, subtitle: state.membership ? `${count} · Already added` : count,
+      return { title: playlist.title, highlightSubtitle: false, subtitle: state.membership ? `${count} · Already added` : count,
         icon: state.membership ? "check" : "playlist-add", actionLabel: state.membership ? "Remove" : "Add" };
     },
     onVisible(items) {

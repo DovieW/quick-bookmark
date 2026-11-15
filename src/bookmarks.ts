@@ -43,9 +43,8 @@ export async function readBookmarkData() {
 export function createBookmarkFilter(includeUrlsAndDomains: boolean) {
   return createFuzzyFilter<BookmarkItem>({
     keys: includeUrlsAndDomains
-      ? [{ name: "title", weight: 2 }, { name: "domain", weight: 1 }, { name: "url", weight: 1 }]
+      ? ["title", "domain", "url"]
       : ["title"],
-    ignoreLocation: includeUrlsAndDomains,
   });
 }
 

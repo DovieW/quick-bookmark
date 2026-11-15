@@ -33,11 +33,12 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
     menu.style.top = `${rect.bottom + height + 6 > window.innerHeight - 8
       ? Math.max(8, rect.top - height - 6) : rect.bottom + 6}px`;
   };
+  let includeSearchUrls = false;
   const picker = createPicker<BookmarkItem>(container, {
     placeholder: "Search bookmarks...", emptyLabel: "No bookmarks found.",
     itemLabel: "bookmarks", selectLabel: "Open", newTabHint: true,
     filter: createBookmarkFilter(false),
-    describe: bookmark => ({ title: bookmark.title, subtitle: bookmark.domain, icon: "bookmark" }),
+    describe: bookmark => ({ title: bookmark.title, subtitle: bookmark.domain, highlightSubtitle: includeSearchUrls, icon: "bookmark" }),
     async onSelect(bookmark, event) {
       if (event.ctrlKey && event.shiftKey) {
         await chrome.tabs.create({ url: bookmark.url });
@@ -116,6 +117,7 @@ export function mountBookmarkOpen(container: HTMLElement): ViewController {
   let settingsRevision = 0;
   const applySettings = (include: boolean) => {
     closeMenu();
+    includeSearchUrls = include;
     picker.setFilter(createBookmarkFilter(include));
     picker.input.placeholder = include ? "Search titles, URLs, or domains..." : "Search bookmarks...";
   };

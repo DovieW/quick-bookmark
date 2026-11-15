@@ -151,6 +151,14 @@ test("save context, concise paths, full tooltips, and search highlights stay usa
   await input.fill("weekend");
   await expect(page.locator(".row-title mark")).toHaveText("Weekend");
   await expect(page.locator(".row-title")).toHaveText("<Weekend> reading");
+  await input.fill("bookmarks weekned");
+  await expect(page.locator(".result-button")).toHaveCount(1);
+  await expect(page.locator(".row-title mark")).toHaveText("Weekend");
+  await expect(page.locator(".row-subtitle mark")).toHaveText("Bookmarks");
+  await input.fill("weekend nonexistent");
+  await expect(page.getByText("No folders found.")).toBeVisible();
+  await input.fill("bookmarks reading");
+  await expect(reading.locator(".row-subtitle mark")).toHaveText("Bookmarks");
   await input.fill("");
   await expect(page.locator("mark")).toHaveCount(0);
   await page.getByRole("button", { name: "Open folder: Reading", exact: true }).click();

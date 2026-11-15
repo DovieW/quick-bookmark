@@ -10,11 +10,11 @@ export function mountFolderSearch(container: HTMLElement): ViewController {
     emptyLabel: "No folders found.",
     itemLabel: "folders", selectLabel: "Save",
     filter: createFuzzyFilter({ keys: ["title", "path"] }),
-    describe: folder => {
+    describe: (folder, query) => {
       const parent = folder.path.slice(0, -(folder.title.length + 1));
       return {
         title: folder.title,
-        subtitle: parent === bookmarksBarTitle ? "" : parent.replace(/\//g, " / "),
+        subtitle: parent === bookmarksBarTitle && !query.trim() ? "" : parent.replace(/\//g, " / "),
         tooltip: folder.path.replace(/\//g, " / "),
         icon: "folder",
       };

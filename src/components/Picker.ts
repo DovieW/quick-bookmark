@@ -6,6 +6,7 @@ export interface PickerRow {
   title: string;
   subtitle: string;
   tooltip?: string;
+  highlightSubtitle?: boolean;
   icon: IconName;
   actionLabel?: string;
   disabled?: boolean;
@@ -17,7 +18,7 @@ interface PickerOptions<T> {
   selectLabel?: string;
   newTabHint?: boolean;
   filter: (items: T[], query: string) => T[];
-  describe: (item: T) => PickerRow;
+  describe: (item: T, query: string) => PickerRow;
   onSelect: (item: T, event: MouseEvent | KeyboardEvent) => Promise<void>;
   secondaryAction?: {
     label: string;
@@ -147,7 +148,7 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
     }
   };
   const select = (item: T, event: MouseEvent | KeyboardEvent) => {
-    if (!options.describe(item).disabled) void run(() => options.onSelect(item, event));
+    if (!options.describe(item, input.value).disabled) void run(() => options.onSelect(item, event));
   };
   const createRow = (item: T): RenderedRow<T> => {
     const li = document.createElement("li");
@@ -219,9 +220,9 @@ export function createPicker<T extends { id: string }>(container: HTMLElement, o
       const entry = rows.get(item.id) ?? createRow(item);
       rows.set(item.id, entry);
       entry.item = item;
-      const row = options.describe(item);
+      const row = options.describe(item, input.value);
       setHighlightedText(entry.title, row.title, input.value);
-      setHighlightedText(entry.subtitle, row.subtitle, input.value);
+      setHighlightedText(entry.subtitle, row.subtitle, row.highlightSubtitle === false ? "" : input.value);
       entry.subtitle.hidden = !row.subtitle;
       setText(entry.actionLabel, row.actionLabel ?? "");
       entry.actionLabel.hidden = !row.actionLabel;

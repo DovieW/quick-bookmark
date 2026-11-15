@@ -32,6 +32,12 @@ test("playlist picker shows membership and an explicit Remove action", async ({ 
   await actions.press("Enter");
   await page.getByRole("textbox").click();
   await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeHidden();
+  await page.getByRole("textbox").fill("videos saved");
+  await expect(remove).toBeVisible();
+  await expect(remove.locator(".row-title mark")).toHaveText(["Saved", "videos"]);
+  await page.getByRole("textbox").fill("videos nonexistent");
+  await expect(page.getByText("No playlists match your search.")).toBeVisible();
+  await page.getByRole("textbox").fill("");
   await remove.click();
   await expect.poll(() => page.evaluate(() => window.__qbTest.closed)).toBe(1);
   expect(mutations).toEqual(["DELETE"]);

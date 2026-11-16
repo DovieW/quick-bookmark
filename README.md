@@ -1,6 +1,6 @@
 # Quick Bookmark
 
-<img align="right" src="release-files/4.0.0/popup-preview.png" width="400px" alt="Quick Bookmark 4.0.0 popup">
+<img align="right" src="release-files/4.1.0/popup-preview.png" width="400px" alt="Quick Bookmark 4.1.0 popup">
 
 Quickly bookmark a page or open a bookmarked page via fuzzy search.
 
@@ -34,7 +34,7 @@ The intended auth flow is:
 
 1. Open a YouTube video page.
 2. Press `Ctrl + D`.
-3. Click **Connect YouTube** in the playlist picker.
+3. Open **Playlist actions** beside the search field and click **Connect YouTube**.
 4. Sign in to Google and approve access.
 5. Pick a playlist.
 
@@ -62,7 +62,7 @@ To create a release zip for Chrome Web Store submission:
 
 The Node-based packager writes a real ZIP with forward-slash paths on Windows, macOS, and Linux. It checks manifest versions and required files before replacing the previous archive. No external archive command is needed.
 
-The [4.0.0 publishing kit](release-files/4.0.0/PUBLISHING.md) includes store copy, permission explanations, reviewer instructions, and updated listing images. Download the extension ZIP and publishing-kit ZIP from the [GitHub release](https://github.com/DovieW/quick-bookmark/releases/tag/v4.0.0). See [CHANGELOG.md](CHANGELOG.md) for the changes.
+The [4.1.0 publishing kit](release-files/4.1.0/PUBLISHING.md) includes store copy, permission explanations, reviewer instructions, and updated listing images. Download the extension ZIP and publishing-kit ZIP from the [GitHub release](https://github.com/DovieW/quick-bookmark/releases/tag/v4.1.0). See [CHANGELOG.md](CHANGELOG.md) for the changes.
 
 To regenerate the kit after building, run `npm run store:images`, `npm run package:zip`, and `npm run package:kit`. Store screenshots use fictional bookmarks and mocked playlist data in a temporary browser profile.
 

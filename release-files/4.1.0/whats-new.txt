@@ -1,0 +1,12 @@
+Quick Bookmark 4.1.0
+
+- Redesigned Save, Open, and Playlists as a compact charcoal command palette with blue selection, tighter rows, smaller controls, and keyboard hints.
+- Simplified the header, added the current page title to Save, and reduced repetitive folder paths while retaining full-path tooltips.
+- Moved YouTube Reconnect and Refresh into a keyboard-accessible playlist actions menu.
+- Sized the results viewport to complete rows and clarified the Open folder action.
+- Replaced phrase-based fuzzy search with word matching anywhere, in any order, across the allowed fields. Every query word must match.
+- Ranked exact names first, followed by title words and prefixes, substrings, parent-path matches, and modest typo matches. Folder usage breaks relevance ties.
+- Added matching highlights with accent-aware original text positions, and kept URL/domain matching off by default.
+- Added search and browser regression coverage and removed the unused Fuse.js dependency.
+
+No new extension permissions are requested.

@@ -22,16 +22,16 @@ async function framePopup(page: Page, title: string, description: string, shortc
     const style = document.createElement("style");
     style.textContent = `
       html, body { height: 100%; }
-      body { background: radial-gradient(ellipse at 12% 10%, #294036 0%, #18221d 40%, #111715 90%); }
-      #root { position: fixed; right: 32px; top: 48px; width: 500px; box-sizing: content-box; border: 1px solid #414b45;
+      body { background: radial-gradient(ellipse at 12% 10%, #293550 0%, #1b202d 40%, #14161d 90%); }
+      #root { position: fixed; right: 32px; top: 48px; width: 460px; box-sizing: content-box; border: 1px solid #3b4357;
         border-radius: 12px; overflow: hidden; box-shadow: 0 18px 60px #0005; }
       .popup-shell { background: var(--color-bg); }
       .store-caption { position: absolute; left: 48px; top: 170px; width: 360px; }
-      .store-caption .store-label { margin: 0 0 24px; font: 600 13px/20px system-ui; letter-spacing: 2px; color: #acd9bc; }
+      .store-caption .store-label { margin: 0 0 24px; font: 600 13px/20px system-ui; letter-spacing: 2px; color: #8aafff; }
       .store-caption h2 { margin: 0 0 24px; font: 600 40px/1.12 system-ui; letter-spacing: -1px; color: #f5f6f5; }
-      .store-caption .store-description { margin: 0; font: 19px/1.6 system-ui; color: #c4cfc7; }
+      .store-caption .store-description { margin: 0; font: 19px/1.6 system-ui; color: #bcc4d6; }
       .store-caption .store-shortcut { display: inline-block; margin: 32px 0 0; padding: 10px 16px;
-        font: 500 17px/24px system-ui; color: #e4ece6; background: #ffffff0a; border: 1px solid #58695e; border-radius: 8px; }
+        font: 500 17px/24px system-ui; color: #dce6ff; background: #ffffff0a; border: 1px solid #526280; border-radius: 8px; }
     `;
     document.head.append(style);
     const aside = document.createElement("aside");
@@ -138,15 +138,15 @@ try {
   await promo.setContent(`<!doctype html><html><head><style>
     * { box-sizing: border-box; } html { width: 440px; height: 280px; overflow: hidden; }
     body { margin: 0; width: 440px; height: 280px; display: flow-root; overflow: hidden; color: #f5f6f5;
-      background: radial-gradient(ellipse at top left, #33533f, #18231c 80%); font-family: system-ui; }
+      background: radial-gradient(ellipse at top left, #334a73, #181e2c 80%); font-family: system-ui; }
     .brand { display: flex; align-items: center; gap: 16px; margin: 32px 32px 24px; }
     .brand img { width: 56px; height: 56px; } h1 { font-size: 25px; font-weight: 600; margin: 0; }
     .search { display: flex; align-items: center; gap: 14px; margin: 0 32px; padding: 14px 18px;
-      border: 1px solid #7b9d85; border-radius: 10px; background: #202a23; color: #d3dfd6; font-size: 18px; }
-    svg { width: 22px; height: 22px; fill: none; stroke: #c5decf; stroke-width: 1.8; }
+      border: 1px solid #8aafff; border-radius: 10px; background: #22242b; color: #c4d6ff; font-size: 18px; }
+    svg { width: 22px; height: 22px; fill: none; stroke: #c4d6ff; stroke-width: 1.8; }
     .row { display: flex; align-items: center; gap: 14px; margin: 12px 32px 0; padding: 16px 18px;
-      background: #344638; border-radius: 10px; }
-    .lines { flex: 1; } .lines span { display: block; height: 7px; border-radius: 5px; background: #c5decf; width: 74%; }
+      background: #25314a; border-radius: 10px; }
+    .lines { flex: 1; } .lines span { display: block; height: 7px; border-radius: 5px; background: #c4d6ff; width: 74%; }
     .lines span + span { margin-top: 10px; height: 5px; width: 45%; opacity: .5; }
   </style></head><body><div class="brand"><img src="data:image/png;base64,${icon}" alt=""><h1>Quick Bookmark</h1></div>
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5 5"/></svg>Save and find pages</div>
